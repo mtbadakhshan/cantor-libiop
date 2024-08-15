@@ -37,7 +37,7 @@ template<typename FieldT>
 void mut_batch_inverse(std::vector<FieldT> &vec);
 
 /** un-optimized simple GCD procedure */
-size_t gcd(const size_t a, const size_t b);
+std::size_t gcd(const std::size_t a, const std::size_t b);
 
 } // namespace libiop
 

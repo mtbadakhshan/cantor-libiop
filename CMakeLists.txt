@@ -37,6 +37,11 @@ option(CPPDEBUG "Enable debugging of C++ STL (does not imply DEBUG)" OFF)
 option(USE_ASAN "Enable Clang address sanitizer" OFF)
 option(USE_UBSAN "Enable Clang undefined behavior sanitizer" OFF)
 
+option(
+  IS_LIBIOP_PARENT
+  "Install submodule dependencies if caller originates from here"
+  ON
+)
 
 
 if(CMAKE_COMPILER_IS_GNUCXX OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -159,5 +164,7 @@ add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
 
 include_directories(.)
 
-add_subdirectory(depends)
+if ("${IS_LIBIOP_PARENT}")
+  add_subdirectory(depends)
+endif()
 add_subdirectory(libiop)

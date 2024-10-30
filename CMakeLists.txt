@@ -160,7 +160,7 @@ endif(CCACHE_FOUND)
 
 # Add a `make check` target that builds and tests
 enable_testing()
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
+add_custom_target(check_libiop COMMAND ${CMAKE_CTEST_COMMAND})
 
 include_directories(.)
 

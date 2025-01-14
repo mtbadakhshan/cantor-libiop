@@ -6,6 +6,7 @@
 #include <libff/common/profiling.hpp>
 #include <libff/algebra/field_utils/field_utils.hpp>
 #include "libiop/algebra/utils.hpp"
+#include "depends/additive-fft/C++/Cantor/fft.hpp"
 
 namespace libiop {
 
@@ -210,7 +211,13 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
     libff::enter_block("Call to additive_FFT_wrapper");
     libff::print_indent(); printf("* Vector size: %zu\n", v.size());
     libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
-    const std::vector<FieldT> result = additive_FFT(v, H);
+    std::vector<FieldT> result; 
+    if(H.is_cantor_basis()){
+        libff::print_indent(); printf("* Using the Cantor FFT\n");
+        result = cantor::additive_FFT(v, H);
+    }
+    else
+        result = additive_FFT(v, H);
     libff::leave_block("Call to additive_FFT_wrapper");
     return result;
 }
@@ -222,7 +229,13 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
     libff::enter_block("Call to additive_IFFT_wrapper");
     libff::print_indent(); printf("* Vector size: %zu\n", v.size());
     libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
-    const std::vector<FieldT> result = additive_IFFT(v, H);
+    std::vector<FieldT> result; 
+    if(H.is_cantor_basis()){
+        libff::print_indent(); printf("* Using the Cantor FFT\n");
+        result = cantor::additive_IFFT(v, H);
+    }
+    else
+        result = additive_IFFT(v, H);
     libff::leave_block("Call to additive_IFFT_wrapper");
     return result;
 }

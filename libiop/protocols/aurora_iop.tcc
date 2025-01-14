@@ -6,6 +6,22 @@ aurora_iop_parameters<FieldT>::aurora_iop_parameters(const size_t security_param
                                                      const size_t RS_extra_dimensions,
                                                      const bool make_zk,
                                                      const field_subset_type domain_type,
+                                                     const bool is_cantor_basis,
+                                                     const size_t num_constraints,
+                                                     const size_t num_variables) :
+    aurora_iop_parameters( security_parameter, pow_bits, RS_extra_dimensions, make_zk, 
+                           domain_type, num_constraints, num_variables )
+{
+    if (domain_type == affine_subspace_type) // otherwise it is false which has been initialized in the class declaration
+        this->is_cantor_basis_ = is_cantor_basis;
+}
+
+template<typename FieldT>
+aurora_iop_parameters<FieldT>::aurora_iop_parameters(const size_t security_parameter,
+                                                     const size_t pow_bits,
+                                                     const size_t RS_extra_dimensions,
+                                                     const bool make_zk,
+                                                     const field_subset_type domain_type,
                                                      const size_t num_constraints,
                                                      const size_t num_variables) :
     security_parameter_(security_parameter),
@@ -201,6 +217,11 @@ field_subset_type aurora_iop_parameters<FieldT>::domain_type() const {
 }
 
 template<typename FieldT>
+bool aurora_iop_parameters<FieldT>::is_cantor_basis() const {
+    return this->is_cantor_basis_;
+}
+
+template<typename FieldT>
 size_t aurora_iop_parameters<FieldT>::query_bound() const {
     return this->query_bound_;
 }
@@ -279,12 +300,12 @@ aurora_iop<FieldT>::aurora_iop(iop_protocol<FieldT> &IOP,
      *  on the default domains being subsets of one another.
      *  To choose the shift, we take a domain of the same size as the codeword domain,
      *  take an element outside of the subset, and make that the shift. */
-    const field_subset<FieldT> unshifted_codeword_domain(1ull << parameters.codeword_domain_dim());
+    const field_subset<FieldT> unshifted_codeword_domain(1ull << parameters.codeword_domain_dim(), parameters.is_cantor_basis());
     const FieldT codeword_domain_shift = unshifted_codeword_domain.element_outside_of_subset();
 
-    const field_subset<FieldT> constraint_domain(1ull << parameters.constraint_domain_dim());
-    const field_subset<FieldT> variable_domain(1ull << parameters.variable_domain_dim());
-    const field_subset<FieldT> codeword_domain(1ull << parameters.codeword_domain_dim(), codeword_domain_shift);
+    const field_subset<FieldT> constraint_domain(1ull << parameters.constraint_domain_dim(), parameters.is_cantor_basis());
+    const field_subset<FieldT> variable_domain(1ull << parameters.variable_domain_dim(), parameters.is_cantor_basis());
+    const field_subset<FieldT> codeword_domain(1ull << parameters.codeword_domain_dim(), codeword_domain_shift, parameters.is_cantor_basis());
 
     const domain_handle constraint_domain_handle = IOP.register_domain(constraint_domain);
     const domain_handle variable_domain_handle = IOP.register_domain(variable_domain);

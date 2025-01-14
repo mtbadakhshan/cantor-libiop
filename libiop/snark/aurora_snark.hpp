@@ -31,6 +31,7 @@ class aurora_snark_parameters {
     size_t RS_extra_dimensions_;
     bool make_zk_;
     field_subset_type domain_type_;
+    bool is_cantor_basis_ = false;
     size_t num_constraints_;
     size_t num_variables_;
 
@@ -51,6 +52,18 @@ class aurora_snark_parameters {
                             const size_t num_constraints,
                             const size_t num_variables);
 
+    aurora_snark_parameters(const size_t security_parameter, // has the is_cantor_basis variable
+                            const LDT_reducer_soundness_type ldt_reducer_soundness_type,
+                            const FRI_soundness_type fri_soundness_type,
+                            const bcs_hash_type hash_enum,
+                            const std::vector<size_t> FRI_localization_parameter_array,
+                            const size_t RS_extra_dimensions,
+                            const bool make_zk,
+                            const field_subset_type domain_type,
+                            const bool is_cantor_basis,
+                            const size_t num_constraints,
+                            const size_t num_variables);
+
     aurora_snark_parameters(const size_t security_parameter,
                             const LDT_reducer_soundness_type ldt_reducer_soundness_type,
                             const FRI_soundness_type fri_soundness_type,
@@ -59,6 +72,18 @@ class aurora_snark_parameters {
                             const size_t RS_extra_dimensions,
                             const bool make_zk,
                             const field_subset_type domain_type,
+                            const size_t num_constraints,
+                            const size_t num_variables);
+
+    aurora_snark_parameters(const size_t security_parameter,  // has the is_cantor_basis variable
+                            const LDT_reducer_soundness_type ldt_reducer_soundness_type,
+                            const FRI_soundness_type fri_soundness_type,
+                            const bcs_hash_type hash_enum,
+                            const size_t FRI_localization_parameter,
+                            const size_t RS_extra_dimensions,
+                            const bool make_zk,
+                            const field_subset_type domain_type,
+                            const bool is_cantor_basis,
                             const size_t num_constraints,
                             const size_t num_variables);
 

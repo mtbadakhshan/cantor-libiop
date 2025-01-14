@@ -19,6 +19,7 @@ class linear_subspace {
 protected:
     std::vector<FieldT> basis_;
     bool is_standard_basis_;
+    bool is_cantor_basis_;
 public:
     linear_subspace() = default;
     linear_subspace(const std::vector<FieldT> &basis);
@@ -39,7 +40,9 @@ public:
     // TODO: add a check for linear independence
 
     bool is_standard_basis() const;
+    bool is_cantor_basis() const; // Taghi added this
     static linear_subspace<FieldT> standard_basis(const std::size_t dimension);
+    static linear_subspace<FieldT> cantor_basis(const std::size_t dimension); // Taghi Added
     // TODO: check if the elements are actually linearly independent
     static linear_subspace<FieldT> random_linear_subspace(const std::size_t dimension);
 
@@ -67,6 +70,10 @@ public:
     FieldT element_outside_of_subset() const;
 
     static affine_subspace<FieldT> shifted_standard_basis(
+        const std::size_t dimension,
+        const FieldT& shift);
+    // Taghi added the following function:
+    static affine_subspace<FieldT> shifted_cantor_basis(
         const std::size_t dimension,
         const FieldT& shift);
     static affine_subspace<FieldT> random_affine_subspace(const std::size_t dimension);

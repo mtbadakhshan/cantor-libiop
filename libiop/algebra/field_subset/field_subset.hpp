@@ -28,11 +28,15 @@ protected:
     std::shared_ptr<affine_subspace<FieldT>> subspace_;
     std::shared_ptr<multiplicative_coset<FieldT>> coset_;
     field_subset_type type_;
+    bool is_cantor_basis_;
 public:
     field_subset() = default;
 
     field_subset(const std::size_t num_elements);
     field_subset(const std::size_t num_elements, const FieldT coset_shift);
+
+    field_subset(const std::size_t num_elements, const bool is_cantor_basis);
+    field_subset(const std::size_t num_elements, const FieldT coset_shift, const bool is_cantor_basis);
 
     field_subset(const affine_subspace<FieldT> subspace);
     field_subset(const multiplicative_coset<FieldT> coset);

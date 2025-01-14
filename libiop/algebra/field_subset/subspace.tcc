@@ -1,6 +1,7 @@
 #include <stdexcept>
 
 #include "libiop/algebra/utils.hpp"
+#include "libiop/algebra/field_subset/cantor_basis.hpp"
 
 namespace libiop {
 
@@ -11,6 +12,7 @@ linear_subspace<FieldT>::linear_subspace(const std::vector<FieldT> &basis) :
     basis_(basis)
 {
     this->is_standard_basis_ = this->is_standard_basis();
+    this->is_cantor_basis_ = this->is_cantor_basis();
 }
 
 template<typename FieldT>
@@ -18,6 +20,7 @@ linear_subspace<FieldT>::linear_subspace(std::vector<FieldT> &&basis) :
     basis_(std::move(basis))
 {
     this->is_standard_basis_ = this->is_standard_basis();
+    this->is_cantor_basis_ = this->is_cantor_basis();
 }
 
 template<typename FieldT>
@@ -102,6 +105,26 @@ linear_subspace<FieldT> linear_subspace<FieldT>::standard_basis(const std::size_
     for (std::size_t i = 0; i < dimension; ++i)
     {
         basis_elements.emplace_back(FieldT(1ull<<i));
+    }
+
+    return linear_subspace<FieldT>(std::move(basis_elements));
+}
+
+// Taghi added the following function
+template<typename FieldT>
+linear_subspace<FieldT> linear_subspace<FieldT>::cantor_basis(const std::size_t dimension)
+{
+    /** For binary fields, log_of_field_size = extension degree */
+    assert(dimension <= libff::log_of_field_size_helper<FieldT>(FieldT::zero()));
+
+    std::vector<FieldT> basis_elements;
+    basis_elements.resize(dimension);
+    
+    for (std::size_t i = 0; i < dimension; ++i)
+    {   
+        if(FieldT::extension_degree() == 128) basis_elements[i].from_words( { cantor_in_gf2to128[i][0], cantor_in_gf2to128[i][1] } );
+        else if(FieldT::extension_degree() == 256) basis_elements[i].from_words( { cantor_in_gf2to256[i][0], cantor_in_gf2to256[i][1], cantor_in_gf2to256[i][2], cantor_in_gf2to256[i][3]} );
+        else throw std::invalid_argument("The field size should be either 128, or 256 for using the cantor basis");
     }
 
     return linear_subspace<FieldT>(std::move(basis_elements));
@@ -222,8 +245,15 @@ FieldT affine_subspace<FieldT>::element_outside_of_subset() const
     if (this->is_standard_basis_)
     {
         return this->shift() + FieldT(1ull << this->dimension());
+    } else if(this->is_cantor_basis_)
+    {
+        FieldT element;
+        if(FieldT::extension_degree() == 128) element.from_words( { cantor_in_gf2to128[this->dimension()][0], cantor_in_gf2to128[this->dimension()][1] } );
+        else if(FieldT::extension_degree() == 256) element.from_words( { cantor_in_gf2to256[this->dimension()][0], cantor_in_gf2to256[this->dimension()][1], cantor_in_gf2to256[this->dimension()][2], cantor_in_gf2to256[this->dimension()][3]} );
+        else throw std::invalid_argument("The field size should be either 128, or 256 for using the cantor basis");
+        return this->shift() + element;
     }
-    throw std::invalid_argument("subspace.element_outside_of_subset() is only supported for standard basis");
+    throw std::invalid_argument("subspace.element_outside_of_subset() is only supported for standard or cantor basis");
 }
 
 template<typename FieldT>
@@ -232,6 +262,20 @@ bool linear_subspace<FieldT>::is_standard_basis() const
     for (size_t i = 0; i < this->basis_.size(); ++i)
     {
         if (this->basis_[i] != FieldT(1ull<<i))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Taghi added the following function to this code
+template<typename FieldT>
+bool linear_subspace<FieldT>::is_cantor_basis() const
+{
+    for (size_t i = this->basis_.size() - 1; i > 0; --i)
+    {
+        if (this->basis_[i-1] != this->basis_[i] * this->basis_[i] + this->basis_[i])
         {
             return false;
         }
@@ -259,6 +303,17 @@ affine_subspace<FieldT> affine_subspace<FieldT>::shifted_standard_basis(
 {
     const linear_subspace<FieldT> basis =
         linear_subspace<FieldT>::standard_basis(dimension);
+    return affine_subspace<FieldT>(std::move(basis), shift);
+}
+
+// Taghi Added the following function
+template<typename FieldT>
+affine_subspace<FieldT> affine_subspace<FieldT>::shifted_cantor_basis(
+    const std::size_t dimension,
+    const FieldT& shift)
+{
+    const linear_subspace<FieldT> basis =
+        linear_subspace<FieldT>::cantor_basis(dimension);
     return affine_subspace<FieldT>(std::move(basis), shift);
 }
 

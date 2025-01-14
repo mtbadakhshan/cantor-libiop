@@ -28,8 +28,32 @@ aurora_snark_parameters<FieldT, hash_type>::aurora_snark_parameters(
     domain_type_(domain_type),
     num_constraints_(num_constraints),
     num_variables_(num_variables),
-    FRI_localization_parameter_array_(FRI_localization_parameter_array)
+    FRI_localization_parameter_array_(FRI_localization_parameter_array),
+    is_cantor_basis_(false)
 {
+    this->initialize_bcs_params(hash_enum);
+    this->initialize_iop_params();
+}
+
+template<typename FieldT, typename hash_type>
+aurora_snark_parameters<FieldT, hash_type>::aurora_snark_parameters(
+    const size_t security_parameter,
+    const LDT_reducer_soundness_type ldt_reducer_soundness_type,
+    const FRI_soundness_type fri_soundness_type,
+    const bcs_hash_type hash_enum,
+    const std::vector<size_t> FRI_localization_parameter_array,
+    const size_t RS_extra_dimensions,
+    const bool make_zk,
+    const field_subset_type domain_type,
+    const bool is_cantor_basis,
+    const size_t num_constraints,
+    const size_t num_variables) :
+    aurora_snark_parameters( security_parameter, ldt_reducer_soundness_type, fri_soundness_type,
+                             hash_enum, FRI_localization_parameter_array, RS_extra_dimensions,
+                             make_zk, domain_type, num_constraints, num_variables)
+{
+    if (domain_type == affine_subspace_type) // otherwise it is false which has been initialized in the called constructor
+        this->is_cantor_basis_ = is_cantor_basis;
     this->initialize_bcs_params(hash_enum);
     this->initialize_iop_params();
 }
@@ -55,8 +79,32 @@ aurora_snark_parameters<FieldT, hash_type>::aurora_snark_parameters(
     domain_type_(domain_type),
     num_constraints_(num_constraints),
     num_variables_(num_variables),
-    FRI_localization_parameter_(FRI_localization_parameter)
+    FRI_localization_parameter_(FRI_localization_parameter),
+    is_cantor_basis_(false)
 {
+    this->initialize_bcs_params(hash_enum);
+    this->initialize_iop_params();
+}
+
+template<typename FieldT, typename hash_type>
+aurora_snark_parameters<FieldT, hash_type>::aurora_snark_parameters( // has the is_cantor_basis variable
+    const size_t security_parameter,
+    const LDT_reducer_soundness_type ldt_reducer_soundness_type,
+    const FRI_soundness_type fri_soundness_type,
+    const bcs_hash_type hash_enum,
+    const size_t FRI_localization_parameter,
+    const size_t RS_extra_dimensions,
+    const bool make_zk,
+    const field_subset_type domain_type,
+    const bool is_cantor_basis,
+    const size_t num_constraints,
+    const size_t num_variables) :
+    aurora_snark_parameters(security_parameter, ldt_reducer_soundness_type,
+                            fri_soundness_type, hash_enum, FRI_localization_parameter,
+                            RS_extra_dimensions, make_zk, domain_type, num_constraints, num_variables) 
+{
+    if (domain_type == affine_subspace_type) // otherwise it is false which has been initialized in the called constructor
+        this->is_cantor_basis_ = is_cantor_basis;
     this->initialize_bcs_params(hash_enum);
     this->initialize_iop_params();
 }
@@ -79,6 +127,7 @@ void aurora_snark_parameters<FieldT, hash_type>::initialize_iop_params()
         this->RS_extra_dimensions_,
         this->make_zk_,
         this->domain_type_,
+        this->is_cantor_basis_,
         this->num_constraints_,
         this->num_variables_);
     if (this->FRI_localization_parameter_array_.size() == 0) {

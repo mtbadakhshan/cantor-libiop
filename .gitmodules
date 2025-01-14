@@ -16,3 +16,7 @@
 [submodule "depends/xbyak"]
 	path = depends/xbyak
 	url = https://github.com/herumi/xbyak.git
+[submodule "depends/additive-fft"]
+	path = depends/additive-fft
+	url = https://github.com/mtbadakhshan/additive-fft
+	branch = cpp_files

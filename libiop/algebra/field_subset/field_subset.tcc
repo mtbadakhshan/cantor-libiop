@@ -1,7 +1,21 @@
 namespace libiop {
 
+
 template<typename FieldT>
-field_subset<FieldT>::field_subset(const std::size_t num_elements)
+field_subset<FieldT>::field_subset(const std::size_t num_elements, 
+                                   const bool is_cantor_basis) :
+is_cantor_basis_(is_cantor_basis)
+{ 
+    if (libff::is_multiplicative<FieldT>::value) {
+        this->construct_internal(num_elements, FieldT::one());
+    } else {
+        this->construct_internal(num_elements, FieldT::zero());
+    }
+}
+
+template<typename FieldT>
+field_subset<FieldT>::field_subset(const std::size_t num_elements)  :
+is_cantor_basis_(false)
 {
     if (libff::is_multiplicative<FieldT>::value) {
         this->construct_internal(num_elements, FieldT::one());
@@ -12,7 +26,17 @@ field_subset<FieldT>::field_subset(const std::size_t num_elements)
 
 template<typename FieldT>
 field_subset<FieldT>::field_subset(const std::size_t num_elements,
-                                   const FieldT coset_shift)
+                                   const FieldT coset_shift,
+                                   const bool is_cantor_basis)  :
+is_cantor_basis_(is_cantor_basis)
+{
+    this->construct_internal(num_elements, coset_shift);
+}
+
+template<typename FieldT>
+field_subset<FieldT>::field_subset(const std::size_t num_elements,
+                                   const FieldT coset_shift)    :
+is_cantor_basis_(false)
 {
     this->construct_internal(num_elements, coset_shift);
 }
@@ -21,13 +45,17 @@ template<typename FieldT>
 field_subset<FieldT>::field_subset(const affine_subspace<FieldT> subspace) :
     subspace_(std::make_shared<affine_subspace<FieldT>>(subspace)),
     type_(affine_subspace_type)
-{ }
+{
+    is_cantor_basis_ = subspace.is_cantor_basis();
+}
 
 template<typename FieldT>
 field_subset<FieldT>::field_subset(const multiplicative_coset<FieldT> coset) :
     coset_(std::make_shared<multiplicative_coset<FieldT>>(coset)),
     type_(multiplicative_coset_type)
-{ }
+{
+    is_cantor_basis_ = false;
+}
 
 template<typename FieldT>
 void field_subset<FieldT>::construct_internal(const std::size_t num_elements,
@@ -50,13 +78,21 @@ void field_subset<FieldT>::construct_internal(const std::size_t num_elements,
 
     if (coset_shift != FieldT(0))
     {
-        this->subspace_ = std::make_shared<affine_subspace<FieldT>>(
-            affine_subspace<FieldT>::shifted_standard_basis(dimension, coset_shift));
+        if (is_cantor_basis_)
+            this->subspace_ = std::make_shared<affine_subspace<FieldT>>(
+                affine_subspace<FieldT>::shifted_cantor_basis(dimension, coset_shift));
+        else
+            this->subspace_ = std::make_shared<affine_subspace<FieldT>>(
+                affine_subspace<FieldT>::shifted_standard_basis(dimension, coset_shift));
     }
     else
     {
-        this->subspace_ = std::make_shared<affine_subspace<FieldT>>(
-            linear_subspace<FieldT>::standard_basis(dimension));
+        if (is_cantor_basis_)
+            this->subspace_ = std::make_shared<affine_subspace<FieldT>>(
+                linear_subspace<FieldT>::cantor_basis(dimension));
+        else
+            this->subspace_ = std::make_shared<affine_subspace<FieldT>>(
+                linear_subspace<FieldT>::standard_basis(dimension));
     }
     this->type_ = affine_subspace_type;
 }

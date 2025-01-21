@@ -1,5 +1,6 @@
 #include <cstddef>
 
+#include <cstdint>
 #include <libfqfft/evaluation_domain/domains/basic_radix2_domain.hpp>
 #include <libfqfft/evaluation_domain/domains/basic_radix2_domain_aux.hpp>
 
@@ -211,10 +212,11 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
     libff::enter_block("Call to additive_FFT_wrapper");
     libff::print_indent(); printf("* Vector size: %zu\n", v.size());
     libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
-    std::vector<FieldT> result; 
+    std::vector<FieldT> result, result2; 
     if(H.is_cantor_basis()){
         libff::print_indent(); printf("* Using the Cantor FFT\n");
-        result = cantor::additive_FFT(v, H);
+        
+        result = cantor::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : H.dimension());
     }
     else
         result = additive_FFT(v, H);
@@ -229,10 +231,25 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
     libff::enter_block("Call to additive_IFFT_wrapper");
     libff::print_indent(); printf("* Vector size: %zu\n", v.size());
     libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
+
+    int h_dim = 0;
+    if (H.shift() != FieldT::zero()){
+        std::vector<uint64_t> h_shift_words = H.shift().to_words();
+        for ( int i = 0; i < 32; ++i ){
+            if(    (FieldT::extension_degree() == 128 && h_shift_words[0] == cantor_in_gf2to128[i][0] && h_shift_words[1] == cantor_in_gf2to128[i][1])
+                || (FieldT::extension_degree() == 192 && h_shift_words[0] == cantor_in_gf2to192[i][0] && h_shift_words[1] == cantor_in_gf2to192[i][1] && h_shift_words[2] == cantor_in_gf2to192[i][2])
+                || (FieldT::extension_degree() == 256 && h_shift_words[0] == cantor_in_gf2to256[i][0] && h_shift_words[1] == cantor_in_gf2to256[i][1] && h_shift_words[2] == cantor_in_gf2to256[i][2] && h_shift_words[3] == cantor_in_gf2to256[i][3])
+                ) 
+            {
+                h_dim = i;
+                break;
+            }
+        }
+    }
     std::vector<FieldT> result; 
     if(H.is_cantor_basis()){
         libff::print_indent(); printf("* Using the Cantor FFT\n");
-        result = cantor::additive_IFFT(v, H);
+        result = cantor::additive_IFFT(v, H.dimension(), h_dim);
     }
     else
         result = additive_IFFT(v, H);

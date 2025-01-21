@@ -47,7 +47,7 @@ static void BM_AURORA_PROVER_CANTOR_BASIS(benchmark::State &state)
     state.SetItemsProcessed(state.iterations());
 }
 
-BENCHMARK(BM_AURORA_PROVER_CANTOR_BASIS)->DenseRange(17, 20, 1)->Unit(benchmark::kMilisecond)->ReportAggregatesOnly(true);
+BENCHMARK(BM_AURORA_PROVER_CANTOR_BASIS)->DenseRange(17, 20, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
 
 }
 

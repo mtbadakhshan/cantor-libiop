@@ -11,17 +11,17 @@ namespace libiop {
 
 TEST(AuroraSnarkTest, SimpleTest) {
     /* Set up R1CS */
-    typedef libff::gf128 FieldT;
+    typedef libff::gf256 FieldT;
     typedef binary_hash_digest hash_type;
 
     const std::size_t num_constraints = 1 << 13;
     const std::size_t num_inputs = (1 << 5) - 1;
     const std::size_t num_variables = (1 << 13) - 1;
     const size_t security_parameter = 128;
-    const size_t RS_extra_dimensions = 2;
-    const size_t FRI_localization_parameter = 3;
-    const LDT_reducer_soundness_type ldt_reducer_soundness_type = LDT_reducer_soundness_type::optimistic_heuristic;
-    const FRI_soundness_type fri_soundness_type = FRI_soundness_type::heuristic;
+    const size_t RS_extra_dimensions = 5;
+    const size_t FRI_localization_parameter = 1;
+    const LDT_reducer_soundness_type ldt_reducer_soundness_type = LDT_reducer_soundness_type::proven;
+    const FRI_soundness_type fri_soundness_type = FRI_soundness_type::proven;
     const field_subset_type domain_type = affine_subspace_type;
     const bool is_cantor_basis = false; // change this to true if you do not want the cantor basis
 

@@ -10,6 +10,7 @@ add_library(
   relations/sparse_matrix.cpp
   iop/utilities/batching.cpp
   algebra/utils.cpp
+  algebra/field_subset/cantor_basis.cpp
 )
 
 # Cmake find modules

@@ -198,6 +198,7 @@ increasing codeword domain dimension\n",
             estimated_num_queries = this->FRI_params_.queries_to_input_oracles();
         }
         this->query_bound_ = estimated_num_queries + 1;
+        std::cout<<"this->query_bound_: " << this->query_bound_ << std::endl;
     }
 }
 

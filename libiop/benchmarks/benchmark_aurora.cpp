@@ -182,13 +182,15 @@ static void BM_AURORA_VERIFIER_STANDARD_BASIS(benchmark::State &state)
     state.counters["codeword_dim"] = params.iop_params_.codeword_domain_dim();
 }
 
-BENCHMARK(BM_AURORA_PROVER_PRIME_FIELD)->DenseRange(5, 18, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
-BENCHMARK(BM_AURORA_PROVER_CANTOR_BASIS)->DenseRange(5, 18, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
-// BENCHMARK(BM_AURORA_VERIFIER_CANTOR_BASIS)->DenseRange(18, 18, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
-BENCHMARK(BM_AURORA_PROVER_STANDARD_BASIS)->DenseRange(5, 18, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
-// BENCHMARK(BM_AURORA_VERIFIER_STANDARD_BASIS)->DenseRange(10, 18, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
+// BENCHMARK(BM_AURORA_PROVER_PRIME_FIELD)->DenseRange(5, 18, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
+BENCHMARK(BM_AURORA_PROVER_CANTOR_BASIS)->DenseRange(9, 19, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
+BENCHMARK(BM_AURORA_VERIFIER_CANTOR_BASIS)->DenseRange(9, 19, 1)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
+BENCHMARK(BM_AURORA_PROVER_STANDARD_BASIS)->DenseRange(9, 15, 5)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
+BENCHMARK(BM_AURORA_VERIFIER_STANDARD_BASIS)->DenseRange(9, 15, 5)->Unit(benchmark::kMillisecond)->ReportAggregatesOnly(true);
 
 
 }
 
 BENCHMARK_MAIN();
+
+//./libiop/benchmark_aurora --benchmark_repetitions=100 --benchmark_out=lch_gm.json --benchmark_out_format=json

@@ -8,6 +8,7 @@
 #include <libff/algebra/field_utils/field_utils.hpp>
 #include "libiop/algebra/utils.hpp"
 #include "depends/additive-fft/C++/Cantor/fft.hpp"
+#include "depends/additive-fft/C++/LCH/fft.hpp"
 
 namespace libiop {
 
@@ -216,7 +217,7 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
     if(H.is_cantor_basis()){
         libff::print_indent(); printf("* Using the Cantor FFT\n");
         
-        result = cantor::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : H.dimension());
+        result = lch::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : H.dimension());
     }
     else
         result = additive_FFT(v, H);
@@ -248,8 +249,8 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
     }
     std::vector<FieldT> result; 
     if(H.is_cantor_basis()){
-        libff::print_indent(); printf("* Using the Cantor FFT\n");
-        result = cantor::additive_IFFT(v, H.dimension(), h_dim);
+        libff::print_indent(); printf("* Using the Cantor IFFT\n");
+        result = lch::additive_IFFT(v, H.dimension(), h_dim);
     }
     else
         result = additive_IFFT(v, H);

@@ -1,171 +1,47 @@
-<h1 align="center">libiop: a C++ library for IOP-based zkSNARKs</h1>
-<p align="center">
-   <a href="https://github.com/scipr-lab/libiop/blob/master/AUTHORS"><img src="https://img.shields.io/badge/authors-SCIPR%20Lab-orange.svg"></a>
-   <a href="https://github.com/scipr-lab/libiop/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-</p>
+<h1 align="center">cantor-libiop: A Fork of libiop with Accelerated Additive FFT</h1>
 
-This library provides zkSNARK constructions that are __transparent__ and __post-quantum__, and moreover rely only on __lightweight symmetric cryptography__ (any [cryptographic hash function](https://en.wikipedia.org/wiki/Cryptographic_hash_function)).
+**🚀 Accelerated `libiop` by Optimizing Additive FFT Algorithms**
 
-The library provides a tool chain for transforming certain types of probabilistic proofs (see below) into zkSNARKs with the above properties. The library includes several zkSNARK constructions that follow this paradigm:
+This repository is a **fork of [`libiop`](https://github.com/scipr-lab/libiop)** focusing on **optimizing additive Fast Fourier Transform (FFT) algorithms** used in the original repository.
 
-* The __Ligero__ protocol from [[AHIV]](https://acmccs.github.io/papers/p2087-amesA.pdf), whose argument size is O(N<sup>0.5</sup>).
-* The __Aurora__ protocol from [[BCRSVW]](https://eprint.iacr.org/2018/828), whose argument size is O(log<sup>2</sup> N).
-* The __Fractal__ protocol from [[COS]](https://eprint.iacr.org/2019/1076), whose argument size is O(log<sup>2</sup> N).
+This library uses the [Cantor](https://www.sciencedirect.com/science/article/pii/0097316589900204?via%3Dihub) additive FFT implemented in the [`additive-fft`](https://github.com/mtbadakhshan/additive-fft/) library and demonstrates notable performance gains in the current Aurora implementation over the [Gao–Mateer](https://ieeexplore.ieee.org/document/5625613) (GM) algorithm provided in [`libiop`](https://github.com/scipr-lab/libiop) across all input sizes, and over the [LCH](https://ieeexplore.ieee.org/document/6979016) algorithm re-implemented in [`additive-fft`](https://github.com/mtbadakhshan/additive-fft/) for smaller circuits, which are prevalent in many zkSNARK applications.
 
-All of these zkSNARKs support R1CS (an NP-complete relation that generalizes arithmetic circuit satisfiability) over smooth prime fields and binary extension fields. An important component of Aurora and Fractal, which is of independent interest, is the [FRI low-degree test](https://eccc.weizmann.ac.il/report/2017/134/).
+
+We achieved about **~40% performance improvement** on the  __Aurora__ [[BCRSVW]](https://eprint.iacr.org/2018/828) while maintaining correctness and interface compatibility with upstream `libiop`.
+
 
 <span style="color:red">**WARNING:**</span> This is an academic proof-of-concept prototype, and in particular has not received careful code review. <br> This implementation is NOT ready for production use.
 
 
-## From IOPs to zkSNARKs
-
-[Interactive oracle proofs](https://eprint.iacr.org/2016/116) (IOPs) are a multi-round generalization of [probabilistically checkable proofs](https://en.wikipedia.org/wiki/Probabilistically_checkable_proof) (PCPs) that offer better performance compared to PCPs. This library provides zkSNARKs constructed from IOPs via the [BCS transformation](https://eprint.iacr.org/2016/116).
-
-The BCS transformation uses a cryptographic hash function (modeled as a [random oracle](https://en.wikipedia.org/wiki/Random_oracle)) to compile any public-coin IOP into a SNARG that is:
-
-* __transparent__ (the only global parameter needed to produce/validate proof strings is the hash function);
-* __post-quantum__ (it is secure in the quantum random oracle model);
-* __lightweight__ (no cryptography beyond the hash function is used).
-
-The BCS transformation is described in [\[BCS\]](https://eprint.iacr.org/2016/116), and its post-quantum security is proved in [\[CMS\]](https://eprint.iacr.org/2019/834).
-
-The BCS transformation preserves __proof of knowledge__: if the underlying IOP is a proof of knowledge, then the resulting SNARG is an argument of knowledge (i.e., a SNARK). Similarly, the BCS transformation preserves __zero knowledge__: if the underlying IOP is (honest-verifier) zero knowledge then the resulting SNARG is zero knowledge (i.e., a zkSNARG).
-
-The BCS transformation also extends to compile *holographic* IOPs into *preprocessing* SNARGs, as described in [\[COS\]](https://eprint.iacr.org/2019/1076). This feature enables SNARGs that provide fast verification for arbitrary computations (and not just structured computations).
-
-## IOP protocols
-
-The folder [`libiop/iop`](libiop/iop) contains infrastructure for writing IOP protocols.
-
-The folder [`libiop/protocols`](libiop/protocols) contains several protocols written using this infrastructure. These include:
-
-<table align="center">
-  <tr>
-    <th></th>
-    <th>language</th>
-    <th>round<br>complexity</th>
-    <th>oracle length<br>(field elts)</th>
-    <th>query<br>complexity</th>
-    <th>indexer time<br>(field ops)</th>
-    <th>prover time<br>(field ops)</th>
-    <th>verifier time<br>(field ops)</th>
-  </tr>
-  <tr>
-    <td>Ligero-IOP</td>
-    <td>R1CS</td>
-    <td>2</td>
-    <td>O(N)</td>
-    <td>O(N<sup>0.5</sup>)</td>
-    <td>N/A</td>
-    <td>O(N logN)</td>
-    <td>O(N)</td>
-  </tr>
-  <tr>
-    <td>Aurora-IOP</td>
-    <td>R1CS</td>
-    <td>O(log N)</td>
-    <td>O(N)</td>
-    <td>O(log N)</td>
-    <td>N/A</td>
-    <td>O(N logN)</td>
-    <td>O(N)</td>
-  </tr>
-    <tr>
-    <td>Fractal-IOP</td>
-    <td>R1CS</td>
-    <td>O(log N)</td>
-    <td>O(N)</td>
-    <td>O(log N)</td>
-    <td>O(N logN)</td>
-    <td>O(N logN)</td>
-    <td>O(log N)</td>
-  </tr>
-</table>
-
-The first is an IOP from the [Ligero paper](https://acmccs.github.io/papers/p2087-amesA.pdf),<sup>[1]</sup>  the second is an IOP from the [Aurora paper](https://eprint.iacr.org/2018/828), and the third is an IOP from the [Fractal paper](https://eprint.iacr.org/2019/1076).
-
-Efficient IOP protocols such as the above are obtained by combining two components: (1) RS-encoded IOP, and a (2) proximity test for the RS code. (See [this paper](https://eprint.iacr.org/2018/828) for more details.) The codebase in this library provides infrastructure that enables generically composing these components.
-
-* The folder [`libiop/protocols/encoded`](libiop/protocols/encoded) contains RS-encoded IOPs. This includes the RS-encoded IOPs that form the core of the Ligero, Aurora, and Fractal protocols.
-* The folder [`libiop/protocols/ldt`](libiop/protocols/ldt) contains proximity tests for the RS code. This includes a _direct test_ (used by Ligero) and the _[FRI protocol](https://eccc.weizmann.ac.il/report/2017/134/)_ (used by Aurora and Fractal).
-
-<sup>[1]</sup>: More precisely, the Ligero paper only describes a construction for _arithmetic circuits_. An appendix of the Aurora paper explains how to extend the construction to support R1CS. The latter is the implemented protocol.
-
-## BCS transformation
-
-The folder [`libiop/bcs`](libiop/bcs) contains the BCS transformation as a standalone component.
-
-The folder [`libiop/snark`](libiop/snark) contains zkSNARKs obtained by applying the BCS transformation to the IOP protocols above.
-
-<table align="center">
-  <tr>
-    <th></th>
-    <th>language</th>
-    <th>indexer time</th>
-    <th>prover time</th>
-    <th>argument size</th>
-    <th>verifier time</th>
-  </tr>
-  <tr>
-    <td>Ligero-SNARK</td>
-    <td>R1CS</td>
-    <td> N/A </td>
-    <td>O<sub>&kappa;</sub>(N logN)</td>
-    <td>O<sub>&kappa;</sub>(N<sup>0.5</sup>)</td>
-    <td>O<sub>&kappa;</sub>(N)</td>
-  </tr>
-  <tr>
-    <td>Aurora-SNARK</td>
-    <td>R1CS</td>
-    <td> N/A </td>
-    <td>O<sub>&kappa;</sub>(N logN)</td>
-    <td>O<sub>&kappa;</sub>(log<sup>2</sup> N)</td>
-    <td>O<sub>&kappa;</sub>(N)</td>
-  </tr>
-    <tr>
-    <td>Fractal-SNARK</td>
-    <td>R1CS</td>
-    <td>O<sub>&kappa;</sub>(N logN)</td>
-    <td>O<sub>&kappa;</sub>(N logN)</td>
-    <td>O<sub>&kappa;</sub>(log<sup>2</sup> N)</td>
-    <td>O<sub>&kappa;</sub>(log<sup>2</sup> N)</td>
-  </tr>
-</table>
-&kappa; is used to denote the fact that asymptotics also depend on the security parameter.
-
-A flag `make_zk` can be set to indicate that the transformation should preserve zero knowledge, or not set to indicate that the IOP being transformed is not zero knowledge and so there is no need to preserve zero knowledge.
 
 ## Installation
 
 Please follow the [installation instructions](INSTALL.md).
 
-## Testing
 
-Test files are in [`libiop/tests`](libiop/tests).
+## Benchmarking
 
-For example, to run all of the tests for the Aurora protocol, do the following:
+| $\log⁡_2(N)$ | $\log_2(∣L∣)$ | Prover: GM | Prover: Cantor | Prover: LCH | Verifier: GM | Verifier: Cantor | Verifier: LCH |
+|:-------------:|:---------------:|:--------------:|:------------------:|:-------------------:|:----------------:|:--------------------:|:---------------------:|
+| 9 | 16 | 0.44 | 0.33 | 0.35 | 0.04 | 0.04 | 0.04 |
+| 10 | 17 | 0.90 | 0.67 | 0.71 | 0.05 | 0.05 | 0.05 |
+| 11 | 18 | 1.87 | 1.36 | 1.44 | 0.07 | 0.06 | 0.07 |
+| 12 | 19 | 3.99 | 2.91 | 2.93 | 0.10 | 0.09 | 0.10 |
+| 13 | 20 | 8.53 | 6.02 | 5.95 | 0.17 | 0.15 | 0.16 |
+| 14 | 21 | 19.47 | 12.01 | 12.44 | 0.29 | 0.26 | 0.28 |
+| 15 | 22 | 41.05 | 25.27 | 25.41 | 0.54 | 0.48 | 0.52 |
+| 16 | 23 | 84.26 | 50.83 | 50.63 | 1.02 | 0.93 | 1.00 |
+| 17 | 24 | 176.67 | 104.26 | 102.95 | 1.98 | 1.79 | 1.93 |
+| 18 | 25 | 373.83 | 216.00 | 213.61 | 3.88 | 3.51 | 3.78 |
+| 19 | 26 | 771.42 | 443.88 | 441.51 | 7.78 | 6.91 | 7.44 |
 
-```bash
-	$ ./test_aurora_snark
-	$ ./test_aurora_protocol
-```
+All measurements were taken with [Google Benchmark](https://github.com/google/benchmark), with a minimum **10-second warm-up period**, on:
 
-To run all tests at once, run `make check`.
+- **CPU:** AMD Ryzen 9 9950X @ 5.7 GHz  
+- **RAM:** 64 GB DDR5  
+- **OS:** Debian 12 with kernel 6.12.12
 
-## Profiling
-
-The folder [`libiop/profiling`](libiop/profiling) contains tooling to produce protocol execution traces with timing and argument size information. These traces are all for a single threaded environment.
-For example, we can create traces for Ligero, Aurora, and Fractal over a 181 bit prime field (with RS-extra-dimensions=3) with the following commands:
-
-```bash
-  $ ./instrument_aurora_snark --make_zk 1 --is_multiplicative 1 --field_size=181 --optimize_localization=1
-  $ ./instrument_fractal_snark --make_zk 1 --is_multiplicative 1 --field_size=181 --optimize_localization=1
-  $ ./instrument_ligero_snark --make_zk 1 --is_multiplicative 1 --field_size=181 --RS_extra_dimensions=3
-```
-
-We use traces generated from the above commands to create the following plots:
-<p align="center"><img src="https://user-images.githubusercontent.com/6440154/66706580-5048e380-ece9-11e9-8a57-eda446684375.jpg" alt="argument size" width="40%"/></p>
-<p align="center"><img src="https://user-images.githubusercontent.com/6440154/66785950-96da4180-ee93-11e9-8e33-b735b9e0ebaa.jpg" alt="prover time" width="40%"/><img src="https://user-images.githubusercontent.com/6440154/66706582-563ec480-ece9-11e9-96fe-fff1736e3dac.jpg" alt="verifier time" width="40%"/></p>
+The codeword length is set to $|L| = 2^{7} N$, adopting [Preon](https://csrc.nist.gov/csrc/media/Projects/pqc-dig-sig/documents/round-1/spec-files/Preon-spec-web.pdf)’s choice of $\rho = 2^{-5}$ to tighten the FRI soundness error. Two extra dimensions are added to achieve **zero-knowledge** property.
 
 ## License
 
@@ -173,8 +49,16 @@ This library is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
-This work was supported by:
-a Google Faculty Award;
-the Israel Science Foundation;
-the UC Berkeley Center for Long-Term Cybersecurity;
-and donations from the Ethereum Foundation, the Interchain Foundation, and Qtum.
+This work was supported by [BTQ Technologies Corp.](https://www.btq.com/) and [Mitacs](https://www.mitacs.ca/).
+
+<!-- ## 📄 How to Cite
+If you use this repository or the additive FFT optimizations in your research, please cite our paper:
+
+```
+@InProceedings{badakhshan2025accelerating,
+author = {Mohammadtaghi Badakhshan and Susanta Samanta and Guang Gong},
+title = {Accelerating Post-quantum Secure zkSNARKs by Optimizing Additive FFT},
+booktitle = {Selected Areas in Cryptography},
+year = {2025}
+}
+``` -->

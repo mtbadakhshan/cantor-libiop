@@ -60,7 +60,7 @@ linear_term<FieldT> variable<FieldT>::operator-() const
 template<typename FieldT>
 bool variable<FieldT>::operator==(const variable<FieldT> &other) const
 {
-    return (this->index == other.index);
+    return (this->index_ == other.index_);
 }
 
 template<typename FieldT>
@@ -126,7 +126,7 @@ linear_term<FieldT> linear_term<FieldT>::operator*(const integer_coeff_t int_coe
 template<typename FieldT>
 linear_term<FieldT> linear_term<FieldT>::operator*(const FieldT &field_coeff) const
 {
-    return linear_term<FieldT>(this->index, field_coeff * this->coeff);
+    return linear_term<FieldT>(this->index_, field_coeff * this->coeff_);
 }
 
 template<typename FieldT>
@@ -168,14 +168,14 @@ linear_combination<FieldT> linear_term<FieldT>::operator-(const linear_combinati
 template<typename FieldT>
 linear_term<FieldT> linear_term<FieldT>::operator-() const
 {
-    return linear_term<FieldT>(this->index, -this->coeff);
+    return linear_term<FieldT>(this->index_, -this->coeff_);
 }
 
 template<typename FieldT>
 bool linear_term<FieldT>::operator==(const linear_term<FieldT> &other) const
 {
-    return (this->index == other.index &&
-            this->coeff == other.coeff);
+    return (this->index_ == other.index_ &&
+            this->coeff_ == other.coeff_);
 }
 
 template<typename FieldT>

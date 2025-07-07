@@ -4,10 +4,10 @@
 
 This repository is a **fork of [`libiop`](https://github.com/scipr-lab/libiop)** focusing on **optimizing additive Fast Fourier Transform (FFT) algorithms** used in the original repository.
 
-This library uses the [Cantor](https://www.sciencedirect.com/science/article/pii/0097316589900204?via%3Dihub) additive FFT implemented in the [`additive-fft`](https://github.com/mtbadakhshan/additive-fft/) library and demonstrates notable performance gains in the current Aurora implementation over the [Gao–Mateer](https://ieeexplore.ieee.org/document/5625613) (GM) algorithm provided in [`libiop`](https://github.com/scipr-lab/libiop) across all input sizes, and over the [LCH](https://ieeexplore.ieee.org/document/6979016) algorithm re-implemented in [`additive-fft`](https://github.com/mtbadakhshan/additive-fft/) for smaller circuits, which are prevalent in many zkSNARK applications.
+This library uses the [Cantor](https://www.sciencedirect.com/science/article/pii/0097316589900204?via%3Dihub) additive FFT implemented in the [`additive-fft`](https://github.com/mtbadakhshan/additive-fft/) library and demonstrates notable performance gains in the current __Aurora__ [[BCRSVW]](https://eprint.iacr.org/2018/828) implementation over the [Gao–Mateer](https://ieeexplore.ieee.org/document/5625613) (GM) algorithm provided in [`libiop`](https://github.com/scipr-lab/libiop) across all input sizes, and over the [LCH](https://ieeexplore.ieee.org/document/6979016) algorithm re-implemented in [`additive-fft`](https://github.com/mtbadakhshan/additive-fft/) for smaller circuits, which are prevalent in many zkSNARK applications.
 
 
-We achieved about **~40% performance improvement** on the  __Aurora__ [[BCRSVW]](https://eprint.iacr.org/2018/828) while maintaining correctness and interface compatibility with upstream `libiop`.
+We achieved about **~40% performance improvement** on the  __Aurora__  while maintaining correctness and interface compatibility with upstream `libiop`.
 
 
 <span style="color:red">**WARNING:**</span> This is an academic proof-of-concept prototype, and in particular has not received careful code review. <br> This implementation is NOT ready for production use.

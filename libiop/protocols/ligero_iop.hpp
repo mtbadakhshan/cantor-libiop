@@ -30,6 +30,7 @@ class ligero_iop_parameters {
     float height_width_ratio_;
     bool make_zk_;
     field_subset_type domain_type_;
+    bool is_cantor_basis_ = false;
     size_t num_constraints_;
     size_t num_variables_;
 
@@ -56,11 +57,21 @@ class ligero_iop_parameters {
                           const field_subset_type domain_type,
                           const size_t num_constraints,
                           const size_t num_variables);
+
+    ligero_iop_parameters(const size_t security_parameter,
+                          const LDT_reducer_soundness_type soundness_type,
+                          const size_t RS_extra_dimensions,
+                          const float height_width_ratio,
+                          const bool make_zk,
+                          const field_subset_type domain_type,
+                          const bool is_cantor_basis,
+                          const size_t num_constraints,
+                          const size_t num_variables);
     size_t systematic_domain_dim() const;
     size_t RS_extra_dimensions() const;
     bool make_zk() const;
     field_subset_type domain_type() const;
-
+    bool is_cantor_basis() const;
     long double achieved_encoded_ligero_interactive_soundness_error() const;
     long double achieved_encoded_ligero_query_soundness_error() const;
     long double achieved_soundness() const;

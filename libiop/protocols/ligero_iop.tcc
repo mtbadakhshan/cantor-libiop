@@ -7,6 +7,23 @@ ligero_iop_parameters<FieldT>::ligero_iop_parameters(const size_t security_param
                                                      const float height_width_ratio,
                                                      const bool make_zk,
                                                      const field_subset_type domain_type,
+                                                     const bool is_cantor_basis,
+                                                     const size_t num_constraints,
+                                                     const size_t num_variables) :
+    ligero_iop_parameters(security_parameter, soundness_type, RS_extra_dimensions,
+        height_width_ratio, make_zk, domain_type, num_constraints, num_variables)
+{
+    if (domain_type == affine_subspace_type) // otherwise it is false which has been initialized in the class declaration
+        this->is_cantor_basis_ = is_cantor_basis;
+}
+
+template<typename FieldT>
+ligero_iop_parameters<FieldT>::ligero_iop_parameters(const size_t security_parameter,
+                                                     const LDT_reducer_soundness_type soundness_type,
+                                                     const size_t RS_extra_dimensions,
+                                                     const float height_width_ratio,
+                                                     const bool make_zk,
+                                                     const field_subset_type domain_type,
                                                      const size_t num_constraints,
                                                      const size_t num_variables) :
     security_parameter_(security_parameter),
@@ -235,6 +252,15 @@ field_subset_type ligero_iop_parameters<FieldT>::domain_type() const
 }
 
 template<typename FieldT>
+bool ligero_iop_parameters<FieldT>::is_cantor_basis() const
+{
+    return this->is_cantor_basis_;
+}
+
+
+
+
+template<typename FieldT>
 long double ligero_iop_parameters<FieldT>::achieved_encoded_ligero_interactive_soundness_error() const
 {
     const long double field_size_bits = (long double)(libff::soundness_log_of_field_size_helper<FieldT>(FieldT::zero()));
@@ -271,6 +297,11 @@ long double ligero_iop_parameters<FieldT>::achieved_soundness() const{
     error += exp2l(-1.0 * ligero_interactive_soundness_bits);
     error += exp2l(-1.0 * ligero_query_soundness_bits);
     const long double soundness_error_in_bits = -1.0 * log2l(error);
+    std::cout << "query_soundness_bits = " << query_soundness_bits << std::endl;
+    std::cout << "ldt_reducer_interactive_soundness_bits = " << ldt_reducer_interactive_soundness_bits << std::endl;
+    std::cout << "ligero_interactive_soundness_bits = " << ligero_interactive_soundness_bits << std::endl;
+    std::cout << "ligero_query_soundness_bits = " << ligero_query_soundness_bits << std::endl;
+    std::cout << "achieved soundness (bits) = " << soundness_error_in_bits << std::endl;
     return soundness_error_in_bits;
 }
 
@@ -295,6 +326,7 @@ void ligero_iop_parameters<FieldT>::print() const
     libff::print_indent(); printf("* num oracle vectors = %zu\n", this->num_oracle_vectors_);
     libff::print_indent(); printf("* make zk = %s\n", (this->make_zk_ ? "true" : "false"));
     libff::print_indent(); printf("* domain type = %s\n", field_subset_type_names[this->domain_type_]);
+    libff::print_indent(); printf("* is cantor basis = %s\n", this->is_cantor_basis_ ? "true" : "false");
     this->ldt_reducer_params_.print();
     this->direct_ldt_params_.print();
 }
@@ -311,12 +343,15 @@ ligero_iop<FieldT>::ligero_iop(iop_protocol<FieldT> &IOP,
     const size_t codeword_domain_dim = parameters.systematic_domain_dim() + this->parameters_.RS_extra_dimensions();
     const size_t codeword_domain_size = 1ull << codeword_domain_dim;
 
-    this->codeword_domain_ = field_subset<FieldT>(codeword_domain_size);
+    this->codeword_domain_ = field_subset<FieldT>(codeword_domain_size, parameters.is_cantor_basis());
     FieldT systematic_domain_shift = this->codeword_domain_.element_outside_of_subset();
 
-    field_subset<FieldT> systematic_domain(systematic_domain_size, systematic_domain_shift);
-    field_subset<FieldT> extended_systematic_domain(systematic_domain_size << 1, systematic_domain_shift);
+    printf("* is cantor basis = %s\n", parameters.is_cantor_basis() ? "true" : "false");
+    // std::cout << "systematic_domain_shift = " << systematic_domain_shift << std::endl;
 
+    field_subset<FieldT> systematic_domain(systematic_domain_size, systematic_domain_shift, parameters.is_cantor_basis());
+    field_subset<FieldT> extended_systematic_domain(systematic_domain_size << 1, systematic_domain_shift, parameters.is_cantor_basis());
+    
     domain_handle codeword_domain_handle = this->IOP_.register_domain(this->codeword_domain_);
     domain_handle systematic_domain_handle = this->IOP_.register_domain(systematic_domain);
     domain_handle extended_systematic_domain_handle = this->IOP_.register_domain(extended_systematic_domain);
@@ -377,10 +412,12 @@ bool ligero_iop<FieldT>::verifier_predicate(const r1cs_primary_input<FieldT> &pr
 {
     libff::enter_block("Check Interleaved R1CS verifier predicate");
     bool decision = this->protocol_->verifier_predicate(primary_input);
+    std::cout<<"decision after interleaved r1cs = " << decision << std::endl;
     libff::leave_block("Check Interleaved R1CS verifier predicate");
 
     libff::enter_block("Check LDT verifier predicate");
     decision &= this->LDT_reducer_->verifier_predicate();
+    std::cout<<"decision after LDT = " << decision << std::endl;
     libff::leave_block("Check LDT verifier predicate");
 
     return decision;
@@ -389,7 +426,8 @@ bool ligero_iop<FieldT>::verifier_predicate(const r1cs_primary_input<FieldT> &pr
 template<typename FieldT>
 void ligero_iop<FieldT>::submit_random_blinding_vector(const oracle_handle_ptr &handle)
 {
-    polynomial<FieldT> random_poly = polynomial<FieldT>::random_polynomial(this->systematic_domain_size_);
+    const size_t systematic_domain_size = 1ull << this->parameters_.systematic_domain_dim();
+    polynomial<FieldT> random_poly = polynomial<FieldT>::random_polynomial(systematic_domain_size);
     std::vector<FieldT> random_vector = FFT_over_field_subset<FieldT>(random_poly.coefficients(), this->codeword_domain_);
     oracle<FieldT> random_vector_oracle(random_vector);
     this->IOP_.submit_oracle(handle, std::move(random_vector_oracle));

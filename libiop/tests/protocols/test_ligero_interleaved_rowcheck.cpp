@@ -48,6 +48,7 @@ bool run_test(std::vector<FieldT> x_vector,
               bool make_zk,
               field_subset_type domain_type)
 {
+    bool is_cantor_basis = true;
     const std::size_t codeword_domain_dim = libff::log2(codeword_domain_size);
     const std::size_t systematic_domain_dim = codeword_domain_dim - 2;
     
@@ -55,9 +56,9 @@ bool run_test(std::vector<FieldT> x_vector,
     const std::size_t systematic_domain_size = 1ull << systematic_domain_dim;
     const std::size_t extended_systematic_domain_size = 1ull << (systematic_domain_dim + 1);
 
-    field_subset<FieldT> codeword_domain(codeword_domain_size);
-    field_subset<FieldT> systematic_domain(systematic_domain_size, shift);
-    field_subset<FieldT> extended_systematic_domain(extended_systematic_domain_size, shift);
+    field_subset<FieldT> codeword_domain(codeword_domain_size, is_cantor_basis);
+    field_subset<FieldT> systematic_domain(systematic_domain_size, shift, is_cantor_basis);
+    field_subset<FieldT> extended_systematic_domain(extended_systematic_domain_size, shift, is_cantor_basis);
     
     /* Set up the blueprint for the protocol */
     iop_protocol<FieldT> IOP;
@@ -176,7 +177,7 @@ bool run_test(std::vector<FieldT> x_vector,
 }
 
 TEST(InterleavedRowcheckTrueTest, SimpleTest) {
-    typedef libff::gf64 FieldT;
+    typedef libff::gf128 FieldT;
 
     for (size_t vector_size = 16; vector_size <= 128; vector_size *= 2)
     {

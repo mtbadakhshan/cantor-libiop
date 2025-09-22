@@ -30,6 +30,7 @@ ligero_iop_parameters<FieldT> obtain_iop_parameters_from_ligero_snark_params(
         parameters.height_width_ratio_,
         parameters.make_zk_,
         parameters.domain_type_,
+        parameters.is_cantor_basis_,
         num_constraints,
         num_variables);
     iop_parameters.print();
@@ -96,10 +97,12 @@ bool ligero_snark_verifier(const r1cs_constraint_system<FieldT> &constraint_syst
 
     libff::enter_block("Check semantic validity of IOP transcript");
     const bool IOP_transcript_valid = IOP.transcript_is_valid();
+    std::cout<<"IOP_transcript_valid = " << IOP_transcript_valid << std::endl;
     libff::leave_block("Check semantic validity of IOP transcript");
 
     libff::enter_block("Check verifier predicate");
     const bool full_protocol_accepts = full_protocol.verifier_predicate(primary_input);
+    std::cout<<"full_protocol_accepts = " << full_protocol_accepts << std::endl;
     libff::leave_block("Check verifier predicate");
 
     libff::print_indent(); printf("* IOP transcript valid: %s\n", IOP_transcript_valid ? "true" : "false");

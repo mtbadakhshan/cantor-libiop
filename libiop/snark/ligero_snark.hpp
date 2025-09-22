@@ -30,6 +30,7 @@ struct ligero_snark_parameters {
     LDT_reducer_soundness_type LDT_reducer_soundness_type_ = LDT_reducer_soundness_type::proven;
     bool make_zk_;
     field_subset_type domain_type_;
+    bool is_cantor_basis_ = false;
     bcs_transformation_parameters<FieldT, MT_root_hash> bcs_params_;
 
     void describe();

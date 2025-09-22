@@ -80,19 +80,19 @@ target_link_libraries(benchmark_aurora iop benchmark)
 
 # add_executable(instrument_algebra profiling/instrument_algebra.cpp)
 add_executable(instrument_aurora_snark profiling/instrument_aurora_snark.cpp)
-# add_executable(instrument_fractal_snark profiling/instrument_fractal_snark.cpp)
+add_executable(instrument_fractal_snark profiling/instrument_fractal_snark.cpp)
 # add_executable(instrument_fri_snark profiling/instrument_fri_snark.cpp)
-# add_executable(instrument_ligero_snark profiling/instrument_ligero_snark.cpp)
+add_executable(instrument_ligero_snark profiling/instrument_ligero_snark.cpp)
 if("${CPPDEBUG}")
   target_link_libraries(instrument_aurora_snark iop gtest_main)
-  # target_link_libraries(instrument_fractal_snark iop gtest_main)
+  target_link_libraries(instrument_fractal_snark iop gtest_main)
   # target_link_libraries(instrument_fri_snark iop)
-  # target_link_libraries(instrument_ligero_snark iop)
+  target_link_libraries(instrument_ligero_snark iop)
 else()
   target_link_libraries(instrument_aurora_snark iop ${Boost_LIBRARIES} gtest_main)
-  # target_link_libraries(instrument_fractal_snark iop ${Boost_LIBRARIES} gtest_main)
+  target_link_libraries(instrument_fractal_snark iop ${Boost_LIBRARIES} gtest_main)
   # target_link_libraries(instrument_fri_snark iop ${Boost_LIBRARIES})
-  # target_link_libraries(instrument_ligero_snark iop ${Boost_LIBRARIES})
+  target_link_libraries(instrument_ligero_snark iop ${Boost_LIBRARIES})
 endif()
 # target_link_libraries(instrument_algebra iop ${Boost_LIBRARIES})
 
@@ -219,20 +219,20 @@ target_link_libraries(test_aurora_protocol iop gtest_main)
 # add_executable(test_fri_optimizer tests/protocols/test_fri_optimizer.cpp)
 # target_link_libraries(test_fri_optimizer iop gtest_main)
 
-# add_executable(test_fractal_protocol tests/protocols/test_fractal_protocol.cpp)
-# target_link_libraries(test_fractal_protocol iop gtest_main)
+add_executable(test_fractal_protocol tests/protocols/test_fractal_protocol.cpp)
+target_link_libraries(test_fractal_protocol iop gtest_main)
 
-# add_executable(test_ligero_interleaved_lincheck_et tests/protocols/test_ligero_interleaved_lincheck_et.cpp)
-# target_link_libraries(test_ligero_interleaved_lincheck_et iop gtest_main)
+add_executable(test_ligero_interleaved_lincheck_et tests/protocols/test_ligero_interleaved_lincheck_et.cpp)
+target_link_libraries(test_ligero_interleaved_lincheck_et iop gtest_main)
 
-# add_executable(test_ligero_interleaved_lincheck_ot tests/protocols/test_ligero_interleaved_lincheck_ot.cpp)
-# target_link_libraries(test_ligero_interleaved_lincheck_ot iop gtest_main)
+add_executable(test_ligero_interleaved_lincheck_ot tests/protocols/test_ligero_interleaved_lincheck_ot.cpp)
+target_link_libraries(test_ligero_interleaved_lincheck_ot iop gtest_main)
 
-# add_executable(test_ligero_protocol tests/protocols/test_ligero_protocol.cpp)
-# target_link_libraries(test_ligero_protocol iop gtest_main)
+add_executable(test_ligero_protocol tests/protocols/test_ligero_protocol.cpp)
+target_link_libraries(test_ligero_protocol iop gtest_main)
 
-# add_executable(test_ligero_interleaved_rowcheck tests/protocols/test_ligero_interleaved_rowcheck.cpp)
-# target_link_libraries(test_ligero_interleaved_rowcheck iop gtest_main)
+add_executable(test_ligero_interleaved_rowcheck tests/protocols/test_ligero_interleaved_rowcheck.cpp)
+target_link_libraries(test_ligero_interleaved_rowcheck iop gtest_main)
 
 # add_executable(test_ldt_reducer tests/protocols/test_ldt_reducer.cpp)
 # target_link_libraries(test_ldt_reducer iop gtest_main)
@@ -289,26 +289,26 @@ add_test(
 #   NAME test_fri_optimizer
 #   COMMAND test_fri_optimizer
 # )
-# add_test(
-#   NAME test_fractal_protocol
-#   COMMAND test_fractal_protocol
-# )
-# add_test(
-#   NAME test_ligero_interleaved_lincheck_et
-#   COMMAND test_ligero_interleaved_lincheck_et
-# )
-# add_test(
-#   NAME test_ligero_interleaved_lincheck_ot
-#   COMMAND test_ligero_interleaved_lincheck_ot
-# )
-# add_test(
-#   NAME test_ligero_protocol
-#   COMMAND test_ligero_protocol
-# )
-# add_test(
-#   NAME test_ligero_interleaved_rowcheck
-#   COMMAND test_ligero_interleaved_rowcheck
-# )
+add_test(
+  NAME test_fractal_protocol
+  COMMAND test_fractal_protocol
+)
+add_test(
+  NAME test_ligero_interleaved_lincheck_et
+  COMMAND test_ligero_interleaved_lincheck_et
+)
+add_test(
+  NAME test_ligero_interleaved_lincheck_ot
+  COMMAND test_ligero_interleaved_lincheck_ot
+)
+add_test(
+  NAME test_ligero_protocol
+  COMMAND test_ligero_protocol
+)
+add_test(
+  NAME test_ligero_interleaved_rowcheck
+  COMMAND test_ligero_interleaved_rowcheck
+)
 # add_test(
 #   NAME test_ldt_reducer
 #   COMMAND test_ldt_reducer
@@ -364,11 +364,11 @@ add_test(
 add_executable(test_aurora_snark tests/snark/test_aurora_snark.cpp)
 target_link_libraries(test_aurora_snark iop gtest_main)
 
-# add_executable(test_fractal_snark tests/snark/test_fractal_snark.cpp )
-# target_link_libraries(test_fractal_snark iop gtest_main)
+add_executable(test_fractal_snark tests/snark/test_fractal_snark.cpp )
+target_link_libraries(test_fractal_snark iop gtest_main)
 
-# add_executable(test_ligero_snark tests/snark/test_ligero_snark.cpp)
-# target_link_libraries(test_ligero_snark iop gtest_main)
+add_executable(test_ligero_snark tests/snark/test_ligero_snark.cpp)
+target_link_libraries(test_ligero_snark iop gtest_main)
 
 # add_executable(test_linking tests/snark/test_linking.cpp)
 # target_link_libraries(test_linking iop gtest_main)
@@ -393,14 +393,14 @@ add_test(
   NAME test_aurora_snark
   COMMAND test_aurora_snark
 )
-# add_test(
-#   NAME test_fractal_snark
-#   COMMAND test_fractal_snark
-# )
-# add_test(
-#   NAME test_ligero_snark
-#   COMMAND test_ligero_snark
-# )
+add_test(
+  NAME test_fractal_snark
+  COMMAND test_fractal_snark
+)
+add_test(
+  NAME test_ligero_snark
+  COMMAND test_ligero_snark
+)
 # add_test(
 #   NAME test_linking
 #   COMMAND test_linking

@@ -213,7 +213,7 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
     libff::enter_block("Call to additive_FFT_wrapper");
     libff::print_indent(); printf("* Vector size: %zu\n", v.size());
     libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
-    std::vector<FieldT> result, result2; 
+    std::vector<FieldT> result; 
 
     int h_dim = 0;
     if (H.shift() != FieldT::zero()){
@@ -228,21 +228,14 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
                 break;
             }
         }
-        std::cout << "Using Cantor basis with shift: " << H.shift() << std::endl;
-        std::cout << "Domain dimension (h.dimension()): " << H.dimension() << std::endl;
-        std::cout << "h_dim: " << h_dim << std::endl;
+        // std::cout << "Using Cantor basis with shift: " << H.shift() << std::endl;
+        // std::cout << "Domain dimension (h.dimension()): " << H.dimension() << std::endl;
+        // std::cout << "h_dim: " << h_dim << std::endl;
     }
 
     if(H.is_cantor_basis()){
         libff::print_indent(); printf("* Using the Cantor FFT\n");
-        
         result = cantor::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
-        result2 = additive_FFT(v, H);
-        for(size_t i = 0; i < result.size(); i++){
-            if (result[i] != result2[i]){
-                std::cout << "Mismatch at index " << i << ": " << result[i] << " != " << result2[i] << std::endl;
-            }
-        }
     }
     else
         result = additive_FFT(v, H);
@@ -275,16 +268,10 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
         // std::cout << "Domain dimension (h.dimension()): " << H.dimension() << std::endl;
         // std::cout << "h_dim: " << h_dim << std::endl;
     }
-    std::vector<FieldT> result, result2; 
+    std::vector<FieldT> result; 
     if(H.is_cantor_basis()){
         libff::print_indent(); printf("* Using the Cantor IFFT\n");
         result = cantor::additive_IFFT(v, H.dimension(), h_dim);
-        result2 = additive_IFFT(v, H);
-        for(size_t i = 0; i < result.size(); i++){
-            if (result[i] != result2[i]){
-                std::cout << "Mismatch at index " << i << ": " << result[i] << " != " << result2[i] << std::endl;
-            }
-        }
     }
     else
         result = additive_IFFT(v, H);

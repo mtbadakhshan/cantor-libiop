@@ -40,6 +40,9 @@ target_include_directories(
 add_executable(benchmark_aurora benchmarks/benchmark_aurora.cpp)
 target_link_libraries(benchmark_aurora iop benchmark)
 
+add_executable(benchmark_ligero benchmarks/benchmark_ligero.cpp)
+target_link_libraries(benchmark_ligero iop benchmark)
+
 # add_executable(benchmark_gf64 benchmarks/benchmark_gf64.cpp)
 # target_link_libraries(benchmark_gf64 iop benchmark)
 

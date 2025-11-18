@@ -16,10 +16,10 @@ TEST(InterleavedR1CSSnarkTest, SimpleTest) {
     /* Set up R1CS */
     typedef libff::gf128 FieldT;
 
-    std::size_t num_constraints = 1 << 4;
-    std::size_t constraint_dim = 4;
-    std::size_t num_inputs = 8;
-    std::size_t num_variables = 15;
+    std::size_t constraint_dim = 15;
+    std::size_t num_constraints = 1 << constraint_dim;
+    std::size_t num_inputs = (1 << 5) - 1;
+    std::size_t num_variables = (1 << constraint_dim) - 1;
     r1cs_example<FieldT> ex = generate_r1cs_example<FieldT>(num_constraints, num_inputs, num_variables);
 
     r1cs_constraint_system<FieldT> constraints = ex.constraint_system_;

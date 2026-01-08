@@ -51,14 +51,23 @@ This library is licensed under the [MIT License](LICENSE).
 
 This work was supported by [BTQ Technologies Corp.](https://www.btq.com/) and [Mitacs](https://www.mitacs.ca/).
 
-<!-- ## 📄 How to Cite
+## 📄 How to Cite
 If you use this repository or the additive FFT optimizations in your research, please cite our paper:
 
 ```
-@InProceedings{badakhshan2025accelerating,
-author = {Mohammadtaghi Badakhshan and Susanta Samanta and Guang Gong},
-title = {Accelerating Post-quantum Secure zkSNARKs by Optimizing Additive FFT},
-booktitle = {Selected Areas in Cryptography},
-year = {2025}
+@InProceedings{10.1007/978-3-032-10536-3_13,
+author="Badakhshan, Mohammadtaghi
+and Samanta, Susanta
+and Gong, Guang",
+editor="Boura, Christina
+and Mashatan, Atefeh
+and Miri, Ali",
+title="Accelerating Post-quantum Secure {zkSNARKs} by Optimizing Additive {FFT}",
+booktitle="Selected Areas in Cryptography -- SAC 2025",
+year="2026",
+publisher="Springer Nature Switzerland",
+address="Cham",
+pages="339--368",
+isbn="978-3-032-10536-3"
 }
-``` -->
+```

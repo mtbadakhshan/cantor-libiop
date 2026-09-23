@@ -29,7 +29,7 @@ class localizer_polynomial {
     protected:
     field_subset_type type_;
     // additive case
-    linearized_polynomial<FieldT> additive_poly_;
+    vanishing_polynomial<FieldT> additive_poly_;
     // multiplicative case
     std::size_t degree_;
     public:

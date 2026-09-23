@@ -24,13 +24,13 @@ namespace libiop {
  *  can call either the LCH implementation or cantor:: (depends/additive-fft/C++/Cantor).
  *  Default is LCH. Benchmarks may switch per thread without recompiling. */
 enum class additive_fft_cantor_implementation : std::uint8_t {
-    lch = 0,
-    cantor_lib = 1,
+    lch_afft = 0,
+    cantor_afft = 1,
 };
 
 inline additive_fft_cantor_implementation &additive_fft_cantor_impl_storage()
 {
-    thread_local additive_fft_cantor_implementation v = additive_fft_cantor_implementation::lch;
+    thread_local additive_fft_cantor_implementation v = additive_fft_cantor_implementation::lch_afft;
     return v;
 }
 

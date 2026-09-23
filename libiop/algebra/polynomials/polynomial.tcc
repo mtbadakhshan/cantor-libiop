@@ -2,6 +2,7 @@
 
 #include "libiop/algebra/field_subset/field_subset.hpp"
 #include "libiop/algebra/fft.hpp"
+#include "libiop/algebra/polynomials/lch_polynomial.hpp"
 
 namespace libiop {
 
@@ -97,6 +98,10 @@ void polynomial<FieldT>::set_degree(const std::size_t degree_bound, const bool t
 template<typename FieldT>
 FieldT polynomial<FieldT>::evaluation_at_point(const FieldT &evalpoint) const
 {
+    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+        return lch_polynomial_evaluation_at_point(this->coefficients_, evalpoint);
+    }
+
     FieldT result = FieldT(0);
 
     for (auto it = this->coefficients_.rbegin(); it != this->coefficients_.rend(); ++it)

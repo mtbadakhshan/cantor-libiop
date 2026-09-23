@@ -446,6 +446,32 @@ std::vector<FieldT> create_fw_prime_evals(
 }
 
 template<typename FieldT>
+void append_polynomial_coefficients(
+    polynomial<FieldT> &target,
+    const polynomial<FieldT> &suffix)
+{
+    const std::vector<FieldT> &target_coeffs = target.coefficients();
+    const std::vector<FieldT> &suffix_coeffs = suffix.coefficients();
+
+    std::vector<FieldT> new_coeffs;
+    new_coeffs.reserve(target_coeffs.size() + suffix_coeffs.size());
+
+    new_coeffs.insert(
+        new_coeffs.end(),
+        target_coeffs.begin(),
+        target_coeffs.end()
+    );
+
+    new_coeffs.insert(
+        new_coeffs.end(),
+        suffix_coeffs.begin(),
+        suffix_coeffs.end()
+    );
+
+    target = polynomial<FieldT>(std::move(new_coeffs));
+}
+
+template<typename FieldT>
 void encoded_aurora_protocol<FieldT>::compute_fprime_ABCz_over_codeword_domain(
     std::vector<FieldT> &Az, std::vector<FieldT> &Bz, std::vector<FieldT> &Cz)
 {
@@ -464,10 +490,16 @@ void encoded_aurora_protocol<FieldT>::compute_fprime_ABCz_over_codeword_domain(
 
     if (this->params_.make_zk()) {
         // Add constraint_vp * R_A/B/Cz to each of the polynomials
-        const vanishing_polynomial<FieldT> constraint_vp(this->constraint_domain_);
-        f_Az += constraint_vp * this->R_Az_;
-        f_Bz += constraint_vp * this->R_Bz_;
-        f_Cz += constraint_vp * this->R_Cz_;
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+            const vanishing_polynomial<FieldT> constraint_vp(this->constraint_domain_);
+            f_Az += constraint_vp * this->R_Az_;
+            f_Bz += constraint_vp * this->R_Bz_;
+            f_Cz += constraint_vp * this->R_Cz_;
+        } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis){
+            append_polynomial_coefficients(f_Az, this->R_Az_);
+            append_polynomial_coefficients(f_Bz, this->R_Bz_);
+            append_polynomial_coefficients(f_Cz, this->R_Cz_);
+        }
     }
 
     this->fprime_Az_over_codeword_domain_ =
@@ -556,9 +588,13 @@ void encoded_aurora_protocol<FieldT>::submit_witness_oracles(
 
     if (this->params_.make_zk()) {
         // fw = fw_prime + Z_{var} * R2
-        const vanishing_polynomial<FieldT> var_vp(this->variable_domain_);
         this->fw_mask_ = polynomial<FieldT>::random_polynomial(this->fw_mask_degree_);
-        fw_prime += var_vp * this->fw_mask_;
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+            const vanishing_polynomial<FieldT> var_vp(this->variable_domain_);
+            fw_prime += var_vp * this->fw_mask_;
+        } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis){
+            append_polynomial_coefficients(fw_prime, this->fw_mask_);
+        } 
     }
     // ii) Divide by input variable vanishing polynomial, and set fw_prime to be the quotient
     const vanishing_polynomial<FieldT> input_vp(this->input_variable_domain_);

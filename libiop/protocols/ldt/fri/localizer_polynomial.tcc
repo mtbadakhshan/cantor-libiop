@@ -8,7 +8,7 @@ localizer_polynomial<FieldT>::localizer_polynomial(const field_subset<FieldT> do
     if (this->type_ == affine_subspace_type)
     {
         vanishing_polynomial<FieldT> vp(domain);
-        this->additive_poly_ = vp.get_linearized_polynomial();
+        this->additive_poly_ = vp;
     }
 }
 
@@ -29,7 +29,7 @@ FieldT localizer_polynomial<FieldT>::evaluation_at_point(const FieldT &eval_poin
 template<typename FieldT>
 linearized_polynomial<FieldT> localizer_polynomial<FieldT>::get_linearized_polynomial() const
 {
-    return this->additive_poly_;
+    return this->additive_poly_.get_linearized_polynomial();
 }
 
 } // namespace libiop

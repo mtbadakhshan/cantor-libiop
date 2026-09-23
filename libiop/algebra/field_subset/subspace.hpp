@@ -40,7 +40,7 @@ public:
     // TODO: add a check for linear independence
 
     bool is_standard_basis() const;
-    bool is_cantor_basis() const; // Taghi added this
+    bool is_cantor_basis() const; 
     static linear_subspace<FieldT> standard_basis(const std::size_t dimension);
     static linear_subspace<FieldT> cantor_basis(const std::size_t dimension); // Taghi Added
     // TODO: check if the elements are actually linearly independent

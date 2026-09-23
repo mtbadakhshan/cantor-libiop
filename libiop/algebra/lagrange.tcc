@@ -9,7 +9,11 @@ void lagrange_cache<FieldT>::construct_internal(const affine_subspace<FieldT> &d
 {
     this->called_ = false;
     this->last_interpolation_point_ = FieldT::zero();
-    this->c_ = this->vp_.get_linearized_polynomial().coefficients()[1].inverse();
+    if (domain.is_cantor_basis()){
+        this->c_ = FieldT::one();
+    } else {
+        this->c_ = this->vp_.get_linearized_polynomial().coefficients()[1].inverse();
+    }
 }
 
 template<typename FieldT>

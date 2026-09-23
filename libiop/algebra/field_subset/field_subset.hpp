@@ -73,6 +73,7 @@ public:
 
     bool operator==(const field_subset<FieldT> &other) const;
     bool operator!=(const field_subset<FieldT> &other) const;
+    bool is_cantor_basis() const {return this->is_cantor_basis_;};
 protected:
     void construct_internal(const std::size_t num_elements,
                             const typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type coset_shift);

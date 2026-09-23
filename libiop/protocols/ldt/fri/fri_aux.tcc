@@ -280,7 +280,10 @@ FieldT additive_evaluate_next_f_i_at_coset(
     /* TODO: Cache unshifted_vp(x_i) and c */
     const FieldT vp_x = unshifted_vp.evaluation_at_point(x_i) -
         unshifted_vp.evaluation_at_point(shift);
-    const FieldT c = unshifted_vp.get_linearized_polynomial().coefficients()[1].inverse();
+    const FieldT c = (localizer_domain.is_cantor_basis()) ? 
+                    FieldT::one() :
+                    unshifted_vp.get_linearized_polynomial().coefficients()[1].inverse();
+
     const bool x_in_domain = vp_x == FieldT::zero();
     /* In binary fields addition and subtraction are the same operation */
     const std::vector<FieldT> coset_elems =

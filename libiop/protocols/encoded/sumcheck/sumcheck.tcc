@@ -5,6 +5,7 @@
 #include "libiop/algebra/fft.hpp"
 #include "libiop/algebra/utils.hpp"
 #include "libiop/algebra/polynomials/polynomial.hpp"
+#include "libiop/algebra/polynomials/poly_basis.hpp"
 
 namespace libiop {
 
@@ -35,7 +36,11 @@ public:
     {
         if (this->field_subset_type_ == affine_subspace_type) {
             /* coefficient for the linear term of the vanishing polynomial */
-            this->eps_ = this->Z_.get_linearized_polynomial().coefficients()[1];
+            if (summation_domain.is_cantor_basis()){
+                this->eps_ = FieldT::one();
+            } else {
+                this->eps_ = this->Z_.get_linearized_polynomial().coefficients()[1];
+            }
         }
     }
 
@@ -289,39 +294,56 @@ virtual_oracle_handle batch_sumcheck_protocol<FieldT>::get_g_oracle_handle() con
 template<typename FieldT>
 void batch_sumcheck_protocol<FieldT>::submit_masking_polynomial()
 {
-    /** The sum of any polynomial m, over all of H is:
-     *  Σ_{a in H} m(a) = Σ_{a in H} g(a) + Z_H * h(a) = Σ_{a in H} g(a), where deg(g) < |H|
-     *  We seek to sample a random polynomial of degree d, which sums to 0 over H.
-     *  We do this as follows:
-     *  1) sample a random polynomial g of deg |H| - 1, and h of degree (d - |H|)
-     *  2) alter g such that its sum over H is 0
-     *  3) compute m using the identity m = Z_H * h + g
-     *  4) convert m to the codeword domain and submit it */
-    libff::enter_block("Sumcheck: sample masking polynomial components");
-    polynomial<FieldT> masking_g_poly = polynomial<FieldT>::random_polynomial(this->summation_domain_size_);
-    const polynomial<FieldT> masking_h_poly = polynomial<FieldT>::random_polynomial(this->h_degree_);
-    libff::leave_block("Sumcheck: sample masking polynomial components");
+    if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis ||
+            this->field_subset_type_ == multiplicative_coset_type){
+        /** The sum of any polynomial m, over all of H is:
+         *  Σ_{a in H} m(a) = Σ_{a in H} g(a) + Z_H * h(a) = Σ_{a in H} g(a), where deg(g) < |H|
+         *  We seek to sample a random polynomial of degree d, which sums to 0 over H.
+         *  We do this as follows:
+         *  1) sample a random polynomial g of deg |H| - 1, and h of degree (d - |H|)
+         *  2) alter g such that its sum over H is 0
+         *  3) compute m using the identity m = Z_H * h + g
+         *  4) convert m to the codeword domain and submit it */
+        libff::enter_block("Sumcheck: sample masking polynomial components");
+        polynomial<FieldT> masking_g_poly = polynomial<FieldT>::random_polynomial(this->summation_domain_size_);
+        const polynomial<FieldT> masking_h_poly = polynomial<FieldT>::random_polynomial(this->h_degree_);
+        libff::leave_block("Sumcheck: sample masking polynomial components");
 
-    libff::enter_block("Sumcheck: compute masking polynomial codeword");
-    const vanishing_polynomial<FieldT> summation_vp(this->summation_domain_);
+        libff::enter_block("Sumcheck: compute masking polynomial codeword");
 
-    if (this->field_subset_type_ == multiplicative_coset_type) {
-        /** When H is a multiplicative group, Σ_{a in H} g(a) = g(0) * |H|,
-         *  thus it sums to 0 if and only if g(0) = 0 */
-        masking_g_poly[0] = FieldT::zero();
-    } else if (this->field_subset_type_ == affine_subspace_type) {
-        /** When H is an additive subspace, Σ_{a in H} g(a) = beta * Σ_{a in H} a^{|H| - 1},
-         *  where beta is the term of g of degree (|H| - 1).
-         *  Σ_{a in H} a^{|H| - 1} is equal to the linear term of Z_H.
-         *  See section 5 of Aurora for more detail of the above.
-         *  Consequently, it sums to 0 if and only if the coefficient of a^{|H| - 1} is 0 */
-        masking_g_poly[this->summation_domain_size_-1] = FieldT::zero();
+        if (this->field_subset_type_ == multiplicative_coset_type) {
+            /** When H is a multiplicative group, Σ_{a in H} g(a) = g(0) * |H|,
+             *  thus it sums to 0 if and only if g(0) = 0 */
+            masking_g_poly[0] = FieldT::zero();
+        } else if (this->field_subset_type_ == affine_subspace_type) {
+            /** When H is an additive subspace, Σ_{a in H} g(a) = beta * Σ_{a in H} a^{|H| - 1},
+             *  where beta is the term of g of degree (|H| - 1).
+             *  Σ_{a in H} a^{|H| - 1} is equal to the linear term of Z_H.
+             *  See section 5 of Aurora for more detail of the above.
+             *  Consequently, it sums to 0 if and only if the coefficient of a^{|H| - 1} is 0 */
+            masking_g_poly[this->summation_domain_size_-1] = FieldT::zero();
+        }
+
+        const vanishing_polynomial<FieldT> summation_vp(this->summation_domain_);
+        this->masking_poly_ = (summation_vp * masking_h_poly) + masking_g_poly;
     }
-    this->masking_poly_ = (summation_vp * masking_h_poly) + masking_g_poly;
+    else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis){
+        /** By computations over the LCH polynomial basis, we don't need to compute g and h
+         * explicitly. Instead, we can directly sample the masking polynomial of degree d
+         */
+        libff::enter_block("Sumcheck: sample the masking polynomial directly in the LCH basis");
+        this->masking_poly_ = polynomial<FieldT>::random_polynomial(this->degree_bound_);
+        this->masking_poly_[this->summation_domain_size_-1] = FieldT::zero();
+        libff::leave_block("Sumcheck: sample the masking polynomial directly in the LCH basis");
+
+        libff::enter_block("Sumcheck: compute masking polynomial codeword");
+    }
+
     this->masking_poly_oracle_ = this->IOP_.submit_oracle(
         this->masking_poly_handle_,
         oracle<FieldT>(FFT_over_field_subset<FieldT>(
             this->masking_poly_.coefficients(), this->codeword_domain_)));
+
     libff::leave_block("Sumcheck: compute masking polynomial codeword");
 }
 

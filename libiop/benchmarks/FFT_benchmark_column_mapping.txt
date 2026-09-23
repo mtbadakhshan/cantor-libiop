@@ -17,15 +17,23 @@ Files: libiop/algebra/fft.hpp, libiop/algebra/fft.tcc
       * If the evaluation domain’s affine subspace has is_cantor_basis() == false:
           → libiop::additive_FFT / additive_IFFT  (Gao–Mateer on a standard basis)
       * If is_cantor_basis() == true:
-          → chosen by thread-local get_additive_fft_cantor_implementation():
-              - additive_fft_cantor_implementation::lch (default)
+          → if get_polynomial_basis_config() == lch_poly_basis:
+                lch::additive_BTFLY / lch::additive_IBTFLY
+                (butterfly only; coefficients are already in the LCH basis)
+          → else chosen by thread-local get_additive_fft_cantor_implementation():
+              - additive_fft_cantor_implementation::lch_afft (default)
                   → lch::additive_FFT / lch::additive_IFFT
-              - additive_fft_cantor_implementation::cantor_lib
+                    (monomial ↔ LCH basis conversion, then butterfly)
+              - additive_fft_cantor_implementation::cantor_afft
                   → cantor::additive_FFT / cantor::additive_IFFT
                     (depends/additive-fft/C++/Cantor)
 
-  Use set_additive_fft_cantor_implementation(...) before running code on that
-  thread (benchmarks set it per registered BM_* function).
+  LCH polynomial basis without a Cantor evaluation domain throws.
+  Use set_polynomial_basis_config(...) and
+  set_additive_fft_cantor_implementation(...) before running code on that
+  thread (benchmarks set them per registered BM_* function). The polynomial
+  basis is thread-local and persists across benchmarks in one process, so
+  each benchmark sets it explicitly.
 
 2) Google Benchmark binaries (libiop/CMakeLists.txt)
 -----------------------------------------------------
@@ -43,15 +51,25 @@ benchmark_ligero (libiop/benchmarks/benchmark_ligero.cpp):
 benchmark_aurora (libiop/benchmarks/benchmark_aurora.cpp):
 
   BM_AURORA_PROVER_STANDARD_BASIS / BM_AURORA_VERIFIER_STANDARD_BASIS
-      is_cantor_basis = false   →  GM column
+      is_cantor_basis = false, polynomial basis = monomial  →  GM column
 
   BM_AURORA_PROVER_CANTOR_BASIS_LCH / BM_AURORA_VERIFIER_CANTOR_BASIS_LCH
-      is_cantor_basis = true, implementation = lch
+      is_cantor_basis = true, polynomial basis = monomial,
+      additive FFT = lch_afft (basis conversion + butterfly)
 
-  BM_AURORA_PROVER_CANTOR_BASIS_CANTOR_LIB / BM_AURORA_VERIFIER_CANTOR_BASIS_CANTOR_LIB
-      is_cantor_basis = true, implementation = cantor_lib
+  BM_AURORA_PROVER_CANTOR_BASIS_CANTOR / BM_AURORA_VERIFIER_CANTOR_BASIS_CANTOR
+      is_cantor_basis = true, polynomial basis = monomial,
+      additive FFT = cantor_afft
 
-Counters: cantor_fft_impl is 0.0 for lch and 1.0 for cantor_lib.
+  BM_AURORA_PROVER_CANTOR_BASIS_LCH_POLY_BASIS /
+  BM_AURORA_VERIFIER_CANTOR_BASIS_LCH_POLY_BASIS
+      is_cantor_basis = true, polynomial basis = lch_poly_basis
+      → butterfly only (lch::additive_BTFLY / additive_IBTFLY).
+      The additive-FFT implementation switch is not used.
+      LCH polynomial basis is only valid together with the Cantor evaluation basis.
+
+Counters: cantor_fft_impl is 0.0 for lch_afft and 1.0 for cantor_afft.
+poly_basis is 0.0 for monomial_poly_basis and 1.0 for lch_poly_basis.
 
 3) Three columns in a publication vs this repo
 ----------------------------------------------

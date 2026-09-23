@@ -27,6 +27,9 @@ TEST(AuroraSnarkTest, SimpleTest) {
     const field_subset_type domain_type = affine_subspace_type;
     const bool is_cantor_basis = true;
 
+    set_additive_fft_cantor_implementation(additive_fft_cantor_implementation::lch_afft);
+    set_polynomial_basis_config(polynomial_basis_config::monomial_poly_basis);
+
     r1cs_example<FieldT> r1cs_params = generate_r1cs_example<FieldT>(
         num_constraints, num_inputs, num_variables);
     EXPECT_TRUE(r1cs_params.constraint_system_.is_satisfied(

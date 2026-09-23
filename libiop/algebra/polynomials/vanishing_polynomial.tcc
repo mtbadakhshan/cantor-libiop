@@ -6,6 +6,9 @@
 #include "libiop/algebra/polynomials/linearized_polynomial.hpp"
 #include "libiop/algebra/fft.hpp"
 #include "libiop/algebra/utils.hpp"
+#include "libiop/algebra/polynomials/poly_basis.hpp"
+#include "libiop/algebra/polynomials/lch_vanishing_polynomial.hpp"
+
 
 namespace libiop {
 
@@ -16,7 +19,10 @@ vanishing_polynomial<FieldT>::vanishing_polynomial(const field_subset<FieldT> &S
 {
     this->vp_degree_ = S.num_elements();
     if (this->type_ == affine_subspace_type) {
-        this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S.subspace());
+        this->is_cantor_basis_ = S.subspace().is_cantor_basis();
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+            this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S.subspace());
+        } // for lch_polynomial_basis do noting (we don't materialize the vanishing polynomial)
     } else if (this->type_ == multiplicative_coset_type) {
         this->vp_shift_ = libff::power(S.coset().shift(), this->vp_degree_);
     } else {
@@ -29,7 +35,10 @@ vanishing_polynomial<FieldT>::vanishing_polynomial(const affine_subspace<FieldT>
     type_(affine_subspace_type)
 {
     this->vp_degree_ = S.num_elements();
-    this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S);
+    this->is_cantor_basis_ = S.is_cantor_basis();
+    if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+        this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S);
+    }// for lch_polynomial_basis do noting (we don't materialize the vanishing polynomial)
 }
 
 template<typename FieldT>
@@ -43,7 +52,13 @@ vanishing_polynomial<FieldT>::vanishing_polynomial(const multiplicative_coset<Fi
 template<typename FieldT>
 FieldT vanishing_polynomial<FieldT>::evaluation_at_point(const FieldT &evalpoint) const {
     if (this->type_ == affine_subspace_type) {
-        return this->linearized_polynomial_.evaluation_at_point(evalpoint);
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis){
+            return this->linearized_polynomial_.evaluation_at_point(evalpoint);
+        } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+            return lch_vanishing_polynomial_evaluation_at_point(evalpoint, *this);
+        } else {
+            throw std::invalid_argument("Unknown polynomial basis config");
+        }
     } else if (this->type_ == multiplicative_coset_type) {
         return libff::power(evalpoint, this->vp_degree_) - this->vp_shift_;
     }
@@ -68,7 +83,11 @@ FieldT vanishing_polynomial<FieldT>::formal_derivative_at_point(const FieldT &ev
          *  Its formal derivative is 2^i x^{(2^i) - 1},
          *  which for i != 0 is zero, as we are in a binary field.
          *  Consequently the formal derivative is just the linear coefficient */
-        return this->linearized_polynomial_.coefficients()[1];
+        if (this->is_cantor_basis()){
+            return FieldT::one();
+        } else {
+            return this->linearized_polynomial_.coefficients()[1];
+        }
     }
     return FieldT::zero();
 }
@@ -108,6 +127,17 @@ template<typename FieldT>
 std::vector<FieldT> vanishing_polynomial<FieldT>::evaluations_over_subspace(const affine_subspace<FieldT> &S) const {
     if (this->type_ != affine_subspace_type) {
         throw std::invalid_argument("evaluations_over_subspace can only be used on subspace vanishing polynomials.");
+    }
+    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+        if (!this->is_cantor_basis_) {
+            throw std::invalid_argument(
+                "LCH evaluations_over_subspace on LCH polynomial basis is only implemented for the Cantor basis");
+        }
+        // Z_m = Z_m(β_m) * X_{2^m}. On Cantor, Z_m(β_m) = 1.
+        // Unshifted H (Aurora input / constraint / summation).
+        std::vector<FieldT> lch_coeffs(this->vp_degree_ + 1, FieldT::zero());
+        lch_coeffs[this->vp_degree_] = FieldT::one();
+        return FFT_over_field_subset<FieldT>(lch_coeffs, field_subset<FieldT>(S));
     }
     return this->linearized_polynomial_.evaluations_over_subspace(S);
 }
@@ -208,7 +238,11 @@ field_subset<FieldT> vanishing_polynomial<FieldT>::associated_k_to_1_map_at_doma
         throw std::invalid_argument("domain type doesn't match vp domain type");
     }
     vanishing_polynomial<FieldT> copy = *this;
-    std::shared_ptr<polynomial_base<FieldT>> k_to_1_map = copy.associated_k_to_1_map();
+    std::shared_ptr<polynomial_base<FieldT>> k_to_1_map;
+    if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+        // including the multiplicative_coset_type case
+        k_to_1_map = copy.associated_k_to_1_map();
+    }
     if (this->type() == affine_subspace_type)
     {
         /** The vanishing polynomial is a k to 1 map for the input subspace, not the whole domain.
@@ -216,33 +250,47 @@ field_subset<FieldT> vanishing_polynomial<FieldT>::associated_k_to_1_map_at_doma
          *  and then remove any duplicates or zero values.
         */
         const std::vector<FieldT> domain_basis = domain.basis();
-        const std::vector<FieldT> transformed_basis =
-            transform_basis_by_polynomial<FieldT>(k_to_1_map, domain_basis);
-        /** Now we remove duplicates from the transformed basis.
-         *  Currently there is no FieldT::hash, so this does naive duplicate removal, and is log(n)^2 */
+        std::vector<FieldT> transformed_basis;
         std::vector<FieldT> returned_basis;
-        for (size_t i = 0; i < transformed_basis.size(); i++)
-        {
-            bool is_dup = false;
-            /** The basis element was in the kernel of the vanishing polynomial. */
-            if (transformed_basis[i] == FieldT::zero())
+        FieldT transformed_shift;
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+            transformed_basis =
+                transform_basis_by_polynomial<FieldT>(k_to_1_map, domain_basis);
+            /** Now we remove duplicates from the transformed basis.
+             *  Currently there is no FieldT::hash, so this does naive duplicate removal, and is log(n)^2 */
+            for (size_t i = 0; i < transformed_basis.size(); i++)
             {
-                continue;
-            }
-            for (size_t j = 0; j < returned_basis.size(); j++)
-            {
-                if (returned_basis[j] == transformed_basis[i])
+                bool is_dup = false;
+                /** The basis element was in the kernel of the vanishing polynomial. */
+                if (transformed_basis[i] == FieldT::zero())
                 {
-                    is_dup = true;
-                    break;
+                    continue;
+                }
+                for (size_t j = 0; j < returned_basis.size(); j++)
+                {
+                    if (returned_basis[j] == transformed_basis[i])
+                    {
+                        is_dup = true;
+                        break;
+                    }
+                }
+                if (!is_dup)
+                {
+                    returned_basis.emplace_back(transformed_basis[i]);
                 }
             }
-            if (!is_dup)
-            {
-                returned_basis.emplace_back(transformed_basis[i]);
+            transformed_shift = k_to_1_map->evaluation_at_point(domain.shift());
+        } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis){
+            if (this->is_cantor_basis() && domain.subspace().is_cantor_basis()) {
+                // we assume that the domains share the same basis elements
+                returned_basis.assign(domain_basis.begin(), 
+                                         domain_basis.begin() + domain_basis.size() - (libff::log2(this->vp_degree_)));
+                transformed_shift = lch_vanishing_polynomial_evaluation_at_point(domain.shift(), *this);
+            } else {
+                throw std::logic_error("not implemented or should not happen");
             }
+            
         }
-        const FieldT transformed_shift = k_to_1_map->evaluation_at_point(domain.shift());
         return field_subset<FieldT>(affine_subspace<FieldT>(returned_basis, transformed_shift));
     }
     else if (this->type_ == multiplicative_coset_type)
@@ -364,8 +412,14 @@ polynomial_over_vanishing_polynomial(const polynomial<FieldT> &f,
                                      const vanishing_polynomial<FieldT> &Z)
 {
     if (Z.type() == affine_subspace_type) {
-        return polynomial_over_linearized_polynomial(f, Z.get_linearized_polynomial());
-    } else {
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis){
+            return polynomial_over_linearized_polynomial(f, Z.get_linearized_polynomial());
+        } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+            return lch_basis_polynomial_over_vanishing_polynomial(f, Z);
+        } else {
+            throw std::invalid_argument("Unknown polynomial basis config");
+        }
+    } else { // multiplicative_coset_type
         return polynomial_over_multiplicative_vanishing_polynomial(f, Z.constant_coefficient(), Z.degree());
     }
 };

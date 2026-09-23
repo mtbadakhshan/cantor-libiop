@@ -9,6 +9,8 @@
 #include "libiop/algebra/utils.hpp"
 #include "depends/additive-fft/C++/Cantor/fft.hpp"
 #include "depends/additive-fft/C++/LCH/fft.hpp"
+#include "libiop/algebra/polynomials/poly_basis.hpp"
+// #include "libiop/algebra/btfy.hpp"
 
 namespace libiop {
 
@@ -237,12 +239,17 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
     }
 
     if(H.is_cantor_basis()){
-        if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_lib)
+        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
+        {
+            libff::print_indent(); printf("* Using Only the Butterfly step of the LCH FFT (no basis conversion)\n");
+            result = lch::additive_BTFLY(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim, true);
+        }
+        else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
         {
             libff::print_indent(); printf("* Using cantor:: additive FFT (Cantor evaluation basis)\n");
-            result = cantor::additive_FFT(v, H);
+            result = cantor::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
         }
-        else
+        else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::lch_afft)
         {
             libff::print_indent(); printf("* Using the LCH additive FFT (Cantor evaluation basis)\n");
             result = lch::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
@@ -281,12 +288,17 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
     }
     std::vector<FieldT> result; 
     if(H.is_cantor_basis()){
-        if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_lib)
+        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
+        {
+            libff::print_indent(); printf("* Using Only the Butterfly step of the LCH IFFT (no basis conversion)\n");
+            result = lch::additive_IBTFLY(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim, true);
+        }
+        else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
         {
             libff::print_indent(); printf("* Using cantor:: additive IFFT (Cantor evaluation basis)\n");
-            result = cantor::additive_IFFT(v, H);
+            result = cantor::additive_IFFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
         }
-        else
+        else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::lch_afft)
         {
             libff::print_indent(); printf("* Using the LCH additive IFFT (Cantor evaluation basis)\n");
             result = lch::additive_IFFT(v, H.dimension(), h_dim);

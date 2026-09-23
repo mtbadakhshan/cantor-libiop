@@ -34,6 +34,8 @@ private:
     linearized_polynomial<FieldT> linearized_polynomial_;
     // multiplicative coset type
     FieldT vp_shift_; /* shift^|H| for cosets, 1 for subgroups */
+    bool is_cantor_basis_;
+
 
 public:
     explicit vanishing_polynomial() {};
@@ -45,6 +47,8 @@ public:
     std::vector<FieldT> evaluations_over_field_subset(const field_subset<FieldT> &S) const;
     std::vector<FieldT> evaluations_over_subspace(const affine_subspace<FieldT> &S) const;
     std::vector<FieldT> evaluations_over_coset(const multiplicative_coset<FieldT> &S) const;
+
+    bool is_cantor_basis() const { return this->is_cantor_basis_; };
 
     /** As the vanishing polynomial is often a k->1 map,
      *  this returns the unique |S|/k evaluations. */

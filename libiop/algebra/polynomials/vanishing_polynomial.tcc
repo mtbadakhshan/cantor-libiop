@@ -133,11 +133,17 @@ std::vector<FieldT> vanishing_polynomial<FieldT>::evaluations_over_subspace(cons
             throw std::invalid_argument(
                 "LCH evaluations_over_subspace on LCH polynomial basis is only implemented for the Cantor basis");
         }
-        // Z_m = Z_m(β_m) * X_{2^m}. On Cantor, Z_m(β_m) = 1.
-        // Unshifted H (Aurora input / constraint / summation).
-        std::vector<FieldT> lch_coeffs(this->vp_degree_ + 1, FieldT::zero());
-        lch_coeffs[this->vp_degree_] = FieldT::one();
-        return FFT_over_field_subset<FieldT>(lch_coeffs, field_subset<FieldT>(S));
+        /** On the Cantor basis Z_H = W_m with W_0(x) = x, W_{i+1} = W_i^2 + W_i,
+         *  which is F_2-linear. So evaluate it at each basis element of S and at
+         *  the shift, and take subset sums: dim(S)*m squarings + |S| additions,
+         *  instead of an FFT over S. */
+        std::vector<FieldT> eval_at_basis(S.basis());
+        for (FieldT &el : eval_at_basis)
+        {
+            el = lch_vanishing_polynomial_evaluation_at_point(el, *this);
+        }
+        const FieldT shift = lch_vanishing_polynomial_evaluation_at_point(S.shift(), *this);
+        return all_subset_sums<FieldT>(eval_at_basis, shift);
     }
     return this->linearized_polynomial_.evaluations_over_subspace(S);
 }
@@ -212,6 +218,10 @@ std::shared_ptr<polynomial_base<FieldT>>
 {
     if (this->type() == affine_subspace_type)
     {
+        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+            throw std::logic_error(
+                "vanishing_polynomial::associated_k_to_1_map is not implemented in the LCH polynomial basis");
+        }
         linearized_polynomial<FieldT> copy = this->linearized_polynomial_;
         return std::make_shared<linearized_polynomial<FieldT>>(copy);
     }
@@ -318,6 +328,12 @@ template<typename FieldT>
 polynomial<FieldT> vanishing_polynomial<FieldT>::operator*(const polynomial<FieldT> &p) const
 {
     if (this->type_ == affine_subspace_type) {
+        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+            /* Coefficient convolution is monomial-basis arithmetic and the linearized
+             * polynomial is not materialized in LCH mode. Use the LCH chunk identity
+             * X_{|H| + j} = Z_H * X_j (see append_polynomial_coefficients) instead. */
+            throw std::logic_error("vanishing_polynomial::operator* is not defined in the LCH polynomial basis");
+        }
         return this->linearized_polynomial_ * p;
     }
     // in the multiplicative case just shift p, and subtract by p * this->vp_shift_
@@ -333,6 +349,11 @@ linearized_polynomial<FieldT> vanishing_polynomial<FieldT>::get_linearized_polyn
     if (this->type_ == multiplicative_coset_type) {
         throw std::invalid_argument(
             "linearized polynomials can't be constructed for multiplicative vanishing polynomials");
+    }
+    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+        /* Not materialized in LCH mode; returning the empty default would be silently wrong. */
+        throw std::logic_error(
+            "vanishing_polynomial::get_linearized_polynomial is unavailable in the LCH polynomial basis");
     }
     return this->linearized_polynomial_;
 }

@@ -216,8 +216,12 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
                                          const affine_subspace<FieldT> &H)
 {
     libff::enter_block("Call to additive_FFT_wrapper");
-    libff::print_indent(); printf("* Vector size: %zu\n", v.size());
-    libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
+    const bool verbose = !libff::inhibit_profiling_info;
+    if (verbose)
+    {
+        libff::print_indent(); printf("* Vector size: %zu\n", v.size());
+        libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
+    }
     std::vector<FieldT> result; 
 
     int h_dim = 0;
@@ -241,17 +245,17 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
     if(H.is_cantor_basis()){
         if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
         {
-            libff::print_indent(); printf("* Using Only the Butterfly step of the LCH FFT (no basis conversion)\n");
+            if (verbose) { libff::print_indent(); printf("* Using Only the Butterfly step of the LCH FFT (no basis conversion)\n"); }
             result = lch::additive_BTFLY(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim, true);
         }
         else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
         {
-            libff::print_indent(); printf("* Using cantor:: additive FFT (Cantor evaluation basis)\n");
+            if (verbose) { libff::print_indent(); printf("* Using cantor:: additive FFT (Cantor evaluation basis)\n"); }
             result = cantor::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
         }
         else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::lch_afft)
         {
-            libff::print_indent(); printf("* Using the LCH additive FFT (Cantor evaluation basis)\n");
+            if (verbose) { libff::print_indent(); printf("* Using the LCH additive FFT (Cantor evaluation basis)\n"); }
             result = lch::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
         }
     }
@@ -266,8 +270,12 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
                                           const affine_subspace<FieldT> &H)
 {
     libff::enter_block("Call to additive_IFFT_wrapper");
-    libff::print_indent(); printf("* Vector size: %zu\n", v.size());
-    libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
+    const bool verbose = !libff::inhibit_profiling_info;
+    if (verbose)
+    {
+        libff::print_indent(); printf("* Vector size: %zu\n", v.size());
+        libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
+    }
 
     int h_dim = 0;
     if (H.shift() != FieldT::zero()){
@@ -290,17 +298,17 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
     if(H.is_cantor_basis()){
         if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
         {
-            libff::print_indent(); printf("* Using Only the Butterfly step of the LCH IFFT (no basis conversion)\n");
+            if (verbose) { libff::print_indent(); printf("* Using Only the Butterfly step of the LCH IFFT (no basis conversion)\n"); }
             result = lch::additive_IBTFLY(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim, true);
         }
         else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
         {
-            libff::print_indent(); printf("* Using cantor:: additive IFFT (Cantor evaluation basis)\n");
+            if (verbose) { libff::print_indent(); printf("* Using cantor:: additive IFFT (Cantor evaluation basis)\n"); }
             result = cantor::additive_IFFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
         }
         else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::lch_afft)
         {
-            libff::print_indent(); printf("* Using the LCH additive IFFT (Cantor evaluation basis)\n");
+            if (verbose) { libff::print_indent(); printf("* Using the LCH additive IFFT (Cantor evaluation basis)\n"); }
             result = lch::additive_IFFT(v, H.dimension(), h_dim);
         }
     }
@@ -488,28 +496,28 @@ std::vector<FieldT> multiplicative_IFFT_wrapper(const std::vector<FieldT> &v,
 }
 
 template<typename FieldT>
-std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> coeffs,
+std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> &coeffs,
                                           field_subset<FieldT> domain)
 {
     return multiplicative_FFT_wrapper<FieldT>(coeffs, domain.coset());
 }
 
 template<typename FieldT>
-std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> coeffs,
+std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> &coeffs,
                                           field_subset<FieldT> domain)
 {
     return additive_FFT_wrapper<FieldT>(coeffs, domain.subspace());
 }
 
 template<typename FieldT>
-std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> evals,
+std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> &evals,
                                            field_subset<FieldT> domain)
 {
     return multiplicative_IFFT_wrapper<FieldT>(evals, domain.coset());
 }
 
 template<typename FieldT>
-std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> evals,
+std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> &evals,
                                            field_subset<FieldT> domain)
 {
     return additive_IFFT_wrapper<FieldT>(evals, domain.subspace());

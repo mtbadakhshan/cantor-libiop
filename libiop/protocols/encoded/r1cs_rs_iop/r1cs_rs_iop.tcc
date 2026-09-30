@@ -445,30 +445,37 @@ std::vector<FieldT> create_fw_prime_evals(
     return fw_prime_evals;
 }
 
+/** LCH polynomial basis only: randomizes target by an element of the ideal (Z_H),
+ *  |H| = vanishing_degree = 2^m, in place. Requires deg(target) < |H|.
+ *
+ *  On the Cantor basis Z_H = W_m and every LCH basis polynomial X_i with i >= |H|
+ *  has a factor W_k, k >= m, which is divisible by W_m (W_k = W_{k-1}(W_{k-1} + 1)).
+ *  So target || suffix (target padded to exactly |H| terms) equals
+ *      target + Z_H * R'
+ *  for some R' with deg(R') = deg(suffix): the values on H are unchanged and the
+ *  degree bound is |H| + deg(suffix). The map suffix -> R' is a linear bijection
+ *  onto polynomials of degree < num_terms(suffix), so a uniformly random suffix
+ *  yields the same distribution as Z_H * R with R uniform, which is all the zk
+ *  masking needs. (R' == suffix literally only when deg(suffix) < |H|, since
+ *  X_{|H| + j} = Z_H * X_j for j < |H| but W_m^2 = W_{m+1} + W_m.) */
 template<typename FieldT>
 void append_polynomial_coefficients(
     polynomial<FieldT> &target,
-    const polynomial<FieldT> &suffix)
+    const polynomial<FieldT> &suffix,
+    const std::size_t vanishing_degree)
 {
-    const std::vector<FieldT> &target_coeffs = target.coefficients();
-    const std::vector<FieldT> &suffix_coeffs = suffix.coefficients();
-
-    std::vector<FieldT> new_coeffs;
-    new_coeffs.reserve(target_coeffs.size() + suffix_coeffs.size());
-
-    new_coeffs.insert(
-        new_coeffs.end(),
-        target_coeffs.begin(),
-        target_coeffs.end()
-    );
-
-    new_coeffs.insert(
-        new_coeffs.end(),
-        suffix_coeffs.begin(),
-        suffix_coeffs.end()
-    );
-
-    target = polynomial<FieldT>(std::move(new_coeffs));
+    if (target.num_terms() > vanishing_degree)
+    {
+        throw std::invalid_argument(
+            "append_polynomial_coefficients: target must have degree < |H|");
+    }
+    /* Pad target to exactly |H| terms so the suffix lands at the X_{|H|} chunk. */
+    target.set_degree(vanishing_degree - 1);
+    target.reserve(vanishing_degree + suffix.num_terms());
+    for (const FieldT &c : suffix.coefficients())
+    {
+        target.add_term(FieldT(c));
+    }
 }
 
 template<typename FieldT>
@@ -496,9 +503,10 @@ void encoded_aurora_protocol<FieldT>::compute_fprime_ABCz_over_codeword_domain(
             f_Bz += constraint_vp * this->R_Bz_;
             f_Cz += constraint_vp * this->R_Cz_;
         } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis){
-            append_polynomial_coefficients(f_Az, this->R_Az_);
-            append_polynomial_coefficients(f_Bz, this->R_Bz_);
-            append_polynomial_coefficients(f_Cz, this->R_Cz_);
+            const std::size_t constraint_domain_size = this->constraint_domain_.num_elements();
+            append_polynomial_coefficients(f_Az, this->R_Az_, constraint_domain_size);
+            append_polynomial_coefficients(f_Bz, this->R_Bz_, constraint_domain_size);
+            append_polynomial_coefficients(f_Cz, this->R_Cz_, constraint_domain_size);
         }
     }
 
@@ -593,8 +601,8 @@ void encoded_aurora_protocol<FieldT>::submit_witness_oracles(
             const vanishing_polynomial<FieldT> var_vp(this->variable_domain_);
             fw_prime += var_vp * this->fw_mask_;
         } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis){
-            append_polynomial_coefficients(fw_prime, this->fw_mask_);
-        } 
+            append_polynomial_coefficients(fw_prime, this->fw_mask_, this->variable_domain_.num_elements());
+        }
     }
     // ii) Divide by input variable vanishing polynomial, and set fw_prime to be the quotient
     const vanishing_polynomial<FieldT> input_vp(this->input_variable_domain_);

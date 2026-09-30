@@ -74,22 +74,27 @@ lch_basis_polynomial_over_vanishing_polynomial(const polynomial<FieldT> &P,
     std::vector<FieldT> remainder_coeffs(P_coeffs.begin(),
                                          P_coeffs.begin() + chunk_size);
 
-    // Preon: quotient_size >= n_chunks * chunk_size, then copy dividend[|H|..]
-    std::vector<FieldT> quotient_coeffs(n_chunks * chunk_size, FieldT::zero());
-    std::copy(P_coeffs.begin() + chunk_size, P_coeffs.end(),
-              quotient_coeffs.begin());
+    /* quotient = dividend[|H|..], padded with zeros to a whole number of chunks
+     * (resize only value-initializes the tail). */
+    std::vector<FieldT> quotient_coeffs(P_coeffs.begin() + chunk_size, P_coeffs.end());
+    quotient_coeffs.resize(n_chunks * chunk_size);
 
+    /** Round r folds W_m^{2^r} = W_{m+r} + (lower terms) back into the LCH basis:
+     *  chunk (offset + s - 1) is added into chunks offset .. offset + s - 2.
+     *  The source chunk is never one of the destinations, so the order of the
+     *  additions is free; iterate destination chunks in the outer loop so the
+     *  inner loop is a contiguous chunk-wise XOR. */
     for (size_t r = 0; r < m; ++r) {
         const size_t s = size_t(1) << r;
         for (size_t offset = 0; offset < n_chunks; offset += 2 * s) {
             if (offset + s > n_chunks - 1) {
                 break;
             }
-            const size_t src_chunk_index = (offset + s - 1) * chunk_size;
-            for (size_t j = 0; j < chunk_size; ++j) {
-                const FieldT src = quotient_coeffs[src_chunk_index + j];
-                for (size_t i = 0; i < s - 1; ++i) {
-                    quotient_coeffs[(offset + i) * chunk_size + j] += src;
+            const FieldT *src = &quotient_coeffs[(offset + s - 1) * chunk_size];
+            for (size_t i = 0; i < s - 1; ++i) {
+                FieldT *dst = &quotient_coeffs[(offset + i) * chunk_size];
+                for (size_t j = 0; j < chunk_size; ++j) {
+                    dst[j] += src[j];
                 }
             }
         }

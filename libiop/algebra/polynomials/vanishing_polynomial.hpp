@@ -34,7 +34,7 @@ private:
     linearized_polynomial<FieldT> linearized_polynomial_;
     // multiplicative coset type
     FieldT vp_shift_; /* shift^|H| for cosets, 1 for subgroups */
-    bool is_cantor_basis_;
+    bool is_cantor_basis_ = false;
 
 
 public:

@@ -332,7 +332,13 @@ void batch_sumcheck_protocol<FieldT>::submit_masking_polynomial()
          * explicitly. Instead, we can directly sample the masking polynomial of degree d
          */
         libff::enter_block("Sumcheck: sample the masking polynomial directly in the LCH basis");
-        this->masking_poly_ = polynomial<FieldT>::random_polynomial(this->degree_bound_);
+        /** In the LCH basis X_{|H|-1} is the only basis polynomial of degree |H|-1
+         *  below |H|, and X_{|H| + j} = Z_H * X_j, so Σ_{a in H} m(a) is exactly the
+         *  coefficient of X_{|H|-1} (eps = 1 on the Cantor basis). Sample every
+         *  coefficient and zero that one.
+         *  This branch is only reached for binary fields (Cantor basis), where every
+         *  bit string is a valid element, so sample the coefficients bytewise in bulk. */
+        this->masking_poly_ = polynomial<FieldT>(random_vector<FieldT>(this->degree_bound_));
         this->masking_poly_[this->summation_domain_size_-1] = FieldT::zero();
         libff::leave_block("Sumcheck: sample the masking polynomial directly in the LCH basis");
 

@@ -85,19 +85,19 @@ std::vector<FieldT> multiplicative_IFFT_wrapper(const std::vector<FieldT> &v,
                                                 const multiplicative_coset<FieldT> &H);
 
 template<typename FieldT>
-std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> coeffs,
+std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> &coeffs,
                                             field_subset<FieldT> domain);
 
 template<typename FieldT>
-std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> coeffs,
+std::vector<FieldT> FFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> &coeffs,
                                             field_subset<FieldT> domain);
 
 template<typename FieldT>
-std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> evals,
+std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_multiplicative<FieldT>::value, FieldT>::type> &evals,
                                              field_subset<FieldT> domain);
 
 template<typename FieldT>
-std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> evals,
+std::vector<FieldT> IFFT_over_field_subset(const std::vector<typename libff::enable_if<libff::is_additive<FieldT>::value, FieldT>::type> &evals,
                                              field_subset<FieldT> domain);
 
 template<typename FieldT>

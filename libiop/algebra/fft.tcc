@@ -1,4 +1,6 @@
 #include <cstddef>
+#include <cstdint>
+#include <stdexcept>
 
 #include <cstdint>
 #include <libfqfft/evaluation_domain/domains/basic_radix2_domain.hpp>
@@ -10,6 +12,7 @@
 #include "depends/additive-fft/C++/Cantor/fft.hpp"
 #include "depends/additive-fft/C++/LCH/fft.hpp"
 #include "libiop/algebra/polynomials/poly_basis.hpp"
+#include "libiop/algebra/polynomials/lch_standard.hpp"
 // #include "libiop/algebra/btfy.hpp"
 
 namespace libiop {
@@ -208,9 +211,80 @@ std::vector<FieldT> additive_IFFT(const std::vector<FieldT> &evals,
     return S;
 }
 
-/** Additive FFT dispatch: standard affine subspace uses Gao–Mateer (additive_FFT);
- *  Cantor special basis uses lch:: or cantor:: per get_additive_fft_cantor_implementation().
+/** Additive FFT dispatch: LCH coefficients use the butterfly on a native
+ *  Cantor or standard domain; monomial + Cantor uses lch:: / cantor::;
+ *  monomial + standard uses Gao–Mateer.
  *  See libiop/benchmarks/FFT_benchmark_column_mapping.txt. */
+template<typename FieldT>
+size_t lch_shift_dim_from_subspace(const affine_subspace<FieldT> &H)
+{
+    if (H.shift() == FieldT::zero())
+    {
+        return 0;
+    }
+    const std::vector<uint64_t> h_shift_words = H.shift().to_words();
+    if (H.is_cantor_basis())
+    {
+        for (int i = 0; i < 32; ++i)
+        {
+            if ((FieldT::extension_degree() == 128 && h_shift_words[0] == cantor_in_gf2to128[i][0] && h_shift_words[1] == cantor_in_gf2to128[i][1])
+                || (FieldT::extension_degree() == 192 && h_shift_words[0] == cantor_in_gf2to192[i][0] && h_shift_words[1] == cantor_in_gf2to192[i][1] && h_shift_words[2] == cantor_in_gf2to192[i][2])
+                || (FieldT::extension_degree() == 256 && h_shift_words[0] == cantor_in_gf2to256[i][0] && h_shift_words[1] == cantor_in_gf2to256[i][1] && h_shift_words[2] == cantor_in_gf2to256[i][2] && h_shift_words[3] == cantor_in_gf2to256[i][3]))
+            {
+                return (size_t)i;
+            }
+        }
+        return 0;
+    }
+    /* Standard: the shift's bits are the subset of {β_i = 2^i}. */
+    size_t bitmask = 0;
+    for (size_t limb = 0; limb < h_shift_words.size(); ++limb)
+    {
+        uint64_t word = h_shift_words[limb];
+        while (word)
+        {
+            const size_t b = (size_t)__builtin_ctzll(word);
+            const size_t bit = limb * 64 + b;
+            if (bit < 8 * sizeof(size_t))
+            {
+                bitmask |= (size_t(1) << bit);
+            }
+            word &= word - 1;
+        }
+    }
+    return bitmask;
+}
+
+template<typename FieldT>
+affine_subspace<FieldT> lch_native_unshifted_domain(const size_t dim)
+{
+    if (get_lch_evaluation_is_cantor())
+    {
+        return affine_subspace<FieldT>(linear_subspace<FieldT>::cantor_basis(dim));
+    }
+    return affine_subspace<FieldT>(linear_subspace<FieldT>::standard_basis(dim));
+}
+
+template<typename FieldT>
+std::vector<FieldT> lch_coeffs_to_monomials(const std::vector<FieldT> &lch_coeffs, const size_t dim)
+{
+    const affine_subspace<FieldT> native = lch_native_unshifted_domain<FieldT>(dim);
+    const std::vector<FieldT> evals = get_lch_evaluation_is_cantor()
+        ? lch::additive_BTFLY(lch_coeffs, dim, 0, true)
+        : lch_standard_btfly(lch_coeffs, dim, 0);
+    return additive_IFFT(evals, native);
+}
+
+template<typename FieldT>
+std::vector<FieldT> monomials_to_lch_coeffs(const std::vector<FieldT> &monomials, const size_t dim)
+{
+    const affine_subspace<FieldT> native = lch_native_unshifted_domain<FieldT>(dim);
+    const std::vector<FieldT> evals = additive_FFT(monomials, native);
+    return get_lch_evaluation_is_cantor()
+        ? lch::additive_IBTFLY(evals, dim, 0, true)
+        : lch_standard_ibtfly(evals, dim, 0);
+}
+
 template<typename FieldT>
 std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
                                          const affine_subspace<FieldT> &H)
@@ -222,45 +296,45 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
         libff::print_indent(); printf("* Vector size: %zu\n", v.size());
         libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
     }
-    std::vector<FieldT> result; 
+    std::vector<FieldT> result;
 
-    int h_dim = 0;
-    if (H.shift() != FieldT::zero()){
-        std::vector<uint64_t> h_shift_words = H.shift().to_words();
-        for ( int i = 0; i < 32; ++i ){
-            if(    (FieldT::extension_degree() == 128 && h_shift_words[0] == cantor_in_gf2to128[i][0] && h_shift_words[1] == cantor_in_gf2to128[i][1])
-                || (FieldT::extension_degree() == 192 && h_shift_words[0] == cantor_in_gf2to192[i][0] && h_shift_words[1] == cantor_in_gf2to192[i][1] && h_shift_words[2] == cantor_in_gf2to192[i][2])
-                || (FieldT::extension_degree() == 256 && h_shift_words[0] == cantor_in_gf2to256[i][0] && h_shift_words[1] == cantor_in_gf2to256[i][1] && h_shift_words[2] == cantor_in_gf2to256[i][2] && h_shift_words[3] == cantor_in_gf2to256[i][3])
-                ) 
-            {
-                h_dim = i;
-                break;
-            }
-        }
-        // std::cout << "Using Cantor basis with shift: " << H.shift() << std::endl;
-        // std::cout << "Domain dimension (h.dimension()): " << H.dimension() << std::endl;
-        // std::cout << "h_dim: " << h_dim << std::endl;
-    }
+    const size_t shift_dim = lch_shift_dim_from_subspace(H);
 
-    if(H.is_cantor_basis()){
-        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
+    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
+    {
+        if (H.is_cantor_basis())
         {
-            if (verbose) { libff::print_indent(); printf("* Using Only the Butterfly step of the LCH FFT (no basis conversion)\n"); }
-            result = lch::additive_BTFLY(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim, true);
+            if (verbose) { libff::print_indent(); printf("* Using LCH butterfly (no monomial conversion), Cantor basis\n"); }
+            result = lch::additive_BTFLY(v, H.dimension(), shift_dim, true);
         }
-        else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
+        else if (H.is_standard_basis())
+        {
+            if (verbose) { libff::print_indent(); printf("* Using LCH butterfly (no monomial conversion), standard basis\n"); }
+            result = lch_standard_btfly(v, H.dimension(), shift_dim);
+        }
+        else
+        {
+            if (verbose) { libff::print_indent(); printf("* LCH coeffs on a non-native domain: monomial bridge + Gao–Mateer\n"); }
+            result = additive_FFT(lch_coeffs_to_monomials(v, H.dimension()), H);
+        }
+    }
+    else if (H.is_cantor_basis())
+    {
+        if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
         {
             if (verbose) { libff::print_indent(); printf("* Using cantor:: additive FFT (Cantor evaluation basis)\n"); }
-            result = cantor::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
+            result = cantor::additive_FFT(v, H.dimension(), shift_dim);
         }
         else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::lch_afft)
         {
             if (verbose) { libff::print_indent(); printf("* Using the LCH additive FFT (Cantor evaluation basis)\n"); }
-            result = lch::additive_FFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
+            result = lch::additive_FFT(v, H.dimension(), shift_dim);
         }
     }
     else
+    {
         result = additive_FFT(v, H);
+    }
     libff::leave_block("Call to additive_FFT_wrapper");
     return result;
 }
@@ -277,43 +351,43 @@ std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
         libff::print_indent(); printf("* Subspace size: %zu\n", H.num_elements());
     }
 
-    int h_dim = 0;
-    if (H.shift() != FieldT::zero()){
-        std::vector<uint64_t> h_shift_words = H.shift().to_words();
-        for ( int i = 0; i < 32; ++i ){
-            if(    (FieldT::extension_degree() == 128 && h_shift_words[0] == cantor_in_gf2to128[i][0] && h_shift_words[1] == cantor_in_gf2to128[i][1])
-                || (FieldT::extension_degree() == 192 && h_shift_words[0] == cantor_in_gf2to192[i][0] && h_shift_words[1] == cantor_in_gf2to192[i][1] && h_shift_words[2] == cantor_in_gf2to192[i][2])
-                || (FieldT::extension_degree() == 256 && h_shift_words[0] == cantor_in_gf2to256[i][0] && h_shift_words[1] == cantor_in_gf2to256[i][1] && h_shift_words[2] == cantor_in_gf2to256[i][2] && h_shift_words[3] == cantor_in_gf2to256[i][3])
-                ) 
-            {
-                h_dim = i;
-                break;
-            }
-        }
-        // std::cout << "Using Cantor basis with shift: " << H.shift() << std::endl;
-        // std::cout << "Domain dimension (h.dimension()): " << H.dimension() << std::endl;
-        // std::cout << "h_dim: " << h_dim << std::endl;
-    }
-    std::vector<FieldT> result; 
-    if(H.is_cantor_basis()){
-        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
+    const size_t shift_dim = lch_shift_dim_from_subspace(H);
+    std::vector<FieldT> result;
+    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis)
+    {
+        if (H.is_cantor_basis())
         {
-            if (verbose) { libff::print_indent(); printf("* Using Only the Butterfly step of the LCH IFFT (no basis conversion)\n"); }
-            result = lch::additive_IBTFLY(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim, true);
+            if (verbose) { libff::print_indent(); printf("* Using LCH inverse butterfly (no monomial conversion), Cantor basis\n"); }
+            result = lch::additive_IBTFLY(v, H.dimension(), shift_dim, true);
         }
-        else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
+        else if (H.is_standard_basis())
+        {
+            if (verbose) { libff::print_indent(); printf("* Using LCH inverse butterfly (no monomial conversion), standard basis\n"); }
+            result = lch_standard_ibtfly(v, H.dimension(), shift_dim);
+        }
+        else
+        {
+            if (verbose) { libff::print_indent(); printf("* LCH IFFT on a non-native domain: Gao–Mateer then inverse butterfly\n"); }
+            result = monomials_to_lch_coeffs(additive_IFFT(v, H), H.dimension());
+        }
+    }
+    else if (H.is_cantor_basis())
+    {
+        if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::cantor_afft)
         {
             if (verbose) { libff::print_indent(); printf("* Using cantor:: additive IFFT (Cantor evaluation basis)\n"); }
-            result = cantor::additive_IFFT(v, H.dimension(), H.shift() == FieldT::zero() ? 0 : h_dim);
+            result = cantor::additive_IFFT(v, H.dimension(), shift_dim);
         }
         else if (get_additive_fft_cantor_implementation() == additive_fft_cantor_implementation::lch_afft)
         {
             if (verbose) { libff::print_indent(); printf("* Using the LCH additive IFFT (Cantor evaluation basis)\n"); }
-            result = lch::additive_IFFT(v, H.dimension(), h_dim);
+            result = lch::additive_IFFT(v, H.dimension(), shift_dim);
         }
     }
     else
+    {
         result = additive_IFFT(v, H);
+    }
     libff::leave_block("Call to additive_IFFT_wrapper");
     return result;
 }

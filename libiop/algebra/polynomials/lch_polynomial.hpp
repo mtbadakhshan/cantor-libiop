@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <vector>
 
+#include "libiop/algebra/polynomials/lch_standard.hpp"
 
 namespace libiop
 {
@@ -18,6 +19,13 @@ namespace libiop
     std::vector<FieldT> lch_fri_fold(const std::vector<FieldT> &lch_coeffs,
                                      const std::size_t eta,
                                      const FieldT &x_i);
+
+    /** Same grouping, with X_t from a per-round basis table (later FRI images). */
+    template <typename FieldT>
+    std::vector<FieldT> lch_fri_fold(const std::vector<FieldT> &lch_coeffs,
+                                     const std::size_t eta,
+                                     const FieldT &x_i,
+                                     const lch_basis_tables<FieldT> &tables);
 
     /** LCH subspace-basis coefficients to monomials (LCH inv_basis_conversion). */
     template <typename FieldT>

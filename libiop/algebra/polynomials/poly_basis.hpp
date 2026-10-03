@@ -28,6 +28,25 @@ namespace libiop
         return polynomial_basis_storage();
     }
 
+    /** LCH coefficients are taken with respect to the IOP evaluation basis.
+     *  Set once from aurora_iop (params.is_cantor_basis()); FFT dispatch still
+     *  reads the domain itself. Default is Cantor, matching the historical path. */
+    inline bool &lch_evaluation_is_cantor_storage()
+    {
+        thread_local bool v = true;
+        return v;
+    }
+
+    inline void set_lch_evaluation_is_cantor(const bool is_cantor)
+    {
+        lch_evaluation_is_cantor_storage() = is_cantor;
+    }
+
+    inline bool get_lch_evaluation_is_cantor()
+    {
+        return lch_evaluation_is_cantor_storage();
+    }
+
     /*
     Z_i(beta_i) in GF(2^64), GF(2^128), GF(2^192), GF(2^256), where
     beta_i is the i-th element of the "standard basis" of GF(2^n) over GF(2).

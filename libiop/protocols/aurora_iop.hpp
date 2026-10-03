@@ -18,6 +18,7 @@ Full protocol for R1CS (encoded R1CS + FRI LDT)
 #include "libiop/protocols/ldt/fri/fri_ldt.hpp"
 #include "libiop/protocols/ldt/ldt_reducer.hpp"
 #include "libiop/relations/r1cs.hpp"
+#include "libiop/algebra/polynomials/poly_basis.hpp"
 
 namespace libiop {
 

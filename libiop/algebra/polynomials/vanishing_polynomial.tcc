@@ -20,9 +20,12 @@ vanishing_polynomial<FieldT>::vanishing_polynomial(const field_subset<FieldT> &S
     this->vp_degree_ = S.num_elements();
     if (this->type_ == affine_subspace_type) {
         this->is_cantor_basis_ = S.subspace().is_cantor_basis();
-        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+        /* Cantor + LCH: Z_H = W_m, no linearized polynomial. Standard LCH still
+         * materializes it for formal_derivative / localizer images. */
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis
+            || !this->is_cantor_basis_) {
             this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S.subspace());
-        } // for lch_polynomial_basis do noting (we don't materialize the vanishing polynomial)
+        }
     } else if (this->type_ == multiplicative_coset_type) {
         this->vp_shift_ = libff::power(S.coset().shift(), this->vp_degree_);
     } else {
@@ -36,9 +39,10 @@ vanishing_polynomial<FieldT>::vanishing_polynomial(const affine_subspace<FieldT>
 {
     this->vp_degree_ = S.num_elements();
     this->is_cantor_basis_ = S.is_cantor_basis();
-    if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
+    if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis
+        || !this->is_cantor_basis_) {
         this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S);
-    }// for lch_polynomial_basis do noting (we don't materialize the vanishing polynomial)
+    }
 }
 
 template<typename FieldT>
@@ -55,7 +59,13 @@ FieldT vanishing_polynomial<FieldT>::evaluation_at_point(const FieldT &evalpoint
         if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis){
             return this->linearized_polynomial_.evaluation_at_point(evalpoint);
         } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
-            return lch_vanishing_polynomial_evaluation_at_point(evalpoint, *this);
+            /* W_m is Z_H only for a prefix of the global Cantor/standard basis.
+             * FRI localizers after round 0 are other subspaces; use the linearized
+             * polynomial we already materialize on the standard basis. */
+            if (this->is_cantor_basis_) {
+                return lch_vanishing_polynomial_evaluation_at_point(evalpoint, *this);
+            }
+            return this->linearized_polynomial_.evaluation_at_point(evalpoint);
         } else {
             throw std::invalid_argument("Unknown polynomial basis config");
         }
@@ -130,13 +140,10 @@ std::vector<FieldT> vanishing_polynomial<FieldT>::evaluations_over_subspace(cons
     }
     if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
         if (!this->is_cantor_basis_) {
-            throw std::invalid_argument(
-                "LCH evaluations_over_subspace on LCH polynomial basis is only implemented for the Cantor basis");
+            return this->linearized_polynomial_.evaluations_over_subspace(S);
         }
-        /** On the Cantor basis Z_H = W_m with W_0(x) = x, W_{i+1} = W_i^2 + W_i,
-         *  which is F_2-linear. So evaluate it at each basis element of S and at
-         *  the shift, and take subset sums: dim(S)*m squarings + |S| additions,
-         *  instead of an FFT over S. */
+        /** Z_H = W_m is F_2-linear, so evaluate at each basis element of S
+         *  and at the shift, then subset-sum. */
         std::vector<FieldT> eval_at_basis(S.basis());
         for (FieldT &el : eval_at_basis)
         {
@@ -218,9 +225,10 @@ std::shared_ptr<polynomial_base<FieldT>>
 {
     if (this->type() == affine_subspace_type)
     {
-        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+        if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis
+            && this->is_cantor_basis_) {
             throw std::logic_error(
-                "vanishing_polynomial::associated_k_to_1_map is not implemented in the LCH polynomial basis");
+                "vanishing_polynomial::associated_k_to_1_map is not implemented for LCH + Cantor");
         }
         linearized_polynomial<FieldT> copy = this->linearized_polynomial_;
         return std::make_shared<linearized_polynomial<FieldT>>(copy);
@@ -296,6 +304,31 @@ field_subset<FieldT> vanishing_polynomial<FieldT>::associated_k_to_1_map_at_doma
                 returned_basis.assign(domain_basis.begin(), 
                                          domain_basis.begin() + domain_basis.size() - (libff::log2(this->vp_degree_)));
                 transformed_shift = lch_vanishing_polynomial_evaluation_at_point(domain.shift(), *this);
+            } else if (!this->is_cantor_basis_) {
+                k_to_1_map = copy.associated_k_to_1_map();
+                transformed_basis =
+                    transform_basis_by_polynomial<FieldT>(k_to_1_map, domain_basis);
+                for (size_t i = 0; i < transformed_basis.size(); i++)
+                {
+                    bool is_dup = false;
+                    if (transformed_basis[i] == FieldT::zero())
+                    {
+                        continue;
+                    }
+                    for (size_t j = 0; j < returned_basis.size(); j++)
+                    {
+                        if (returned_basis[j] == transformed_basis[i])
+                        {
+                            is_dup = true;
+                            break;
+                        }
+                    }
+                    if (!is_dup)
+                    {
+                        returned_basis.emplace_back(transformed_basis[i]);
+                    }
+                }
+                transformed_shift = k_to_1_map->evaluation_at_point(domain.shift());
             } else {
                 throw std::logic_error("not implemented or should not happen");
             }
@@ -350,10 +383,10 @@ linearized_polynomial<FieldT> vanishing_polynomial<FieldT>::get_linearized_polyn
         throw std::invalid_argument(
             "linearized polynomials can't be constructed for multiplicative vanishing polynomials");
     }
-    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
-        /* Not materialized in LCH mode; returning the empty default would be silently wrong. */
+    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis
+        && this->is_cantor_basis_) {
         throw std::logic_error(
-            "vanishing_polynomial::get_linearized_polynomial is unavailable in the LCH polynomial basis");
+            "vanishing_polynomial::get_linearized_polynomial is unavailable for LCH + Cantor");
     }
     return this->linearized_polynomial_;
 }

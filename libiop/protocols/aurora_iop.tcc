@@ -289,6 +289,7 @@ aurora_iop<FieldT>::aurora_iop(iop_protocol<FieldT> &IOP,
     constraint_system_(constraint_system),
     parameters_(parameters)
 {
+    set_lch_evaluation_is_cantor(parameters.is_cantor_basis());
     if (!libff::is_power_of_2(this->constraint_system_.num_inputs() + 1))
     {
         throw std::invalid_argument("number of inputs in the constraint system must be one less than a power of two.");

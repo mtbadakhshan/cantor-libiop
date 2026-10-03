@@ -273,6 +273,16 @@ bool linear_subspace<FieldT>::is_standard_basis() const
 template<typename FieldT>
 bool linear_subspace<FieldT>::is_cantor_basis() const
 {
+    if (this->basis_.empty())
+    {
+        return false;
+    }
+    /* A 1-dimensional space satisfies the Cantor recurrence vacuously.
+     * Later FRI localizers are span{β} with β ≠ 1 and must not be treated as Cantor. */
+    if (this->basis_.size() == 1)
+    {
+        return this->basis_[0] == FieldT::one();
+    }
     for (size_t i = this->basis_.size() - 1; i > 0; --i)
     {
         if (this->basis_[i-1] != this->basis_[i] * this->basis_[i] + this->basis_[i])
@@ -280,7 +290,7 @@ bool linear_subspace<FieldT>::is_cantor_basis() const
             return false;
         }
     }
-    return true;
+    return this->basis_[0] == FieldT::one();
 }
 
 template<typename FieldT>

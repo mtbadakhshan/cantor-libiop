@@ -3,9 +3,77 @@
 #include "libiop/algebra/fft.hpp"
 #include "libiop/algebra/field_subset/subgroup.hpp"
 #include "libiop/algebra/polynomials/lch_polynomial.hpp"
+#include "libiop/algebra/polynomials/lch_standard.hpp"
 #include "libiop/algebra/polynomials/poly_basis.hpp"
 
 namespace libiop {
+
+/** Standard-basis next codeword from folded LCH coefficients (Preon).
+ *  Embed out[j] at index j·2^η, butterfly on the current (native) domain,
+ *  then take every 2^η-th sample. The identity X_{t+kj}(x)=X_t(x)X_j(Ŵ_η(x))
+ *  makes those samples the interpolants Lagrange would write, in coset order.
+ *  Cantor can FFT the folded coeffs on the next domain (z_η=1, Ŵ=Z). */
+template<typename FieldT>
+std::vector<FieldT> lch_standard_next_codeword_from_folded(
+    const std::vector<FieldT> &folded,
+    const field_subset<FieldT> &current_domain,
+    const std::size_t eta)
+{
+    const size_t stride = size_t(1) << eta;
+    const size_t L = current_domain.num_elements();
+    const size_t live = folded.empty() ? 0 : (folded.size() - 1) * stride + 1;
+    std::vector<FieldT> embed(live, FieldT::zero());
+    for (size_t j = 0; j < folded.size(); ++j)
+    {
+        const size_t pos = j * stride;
+        if (pos >= live)
+        {
+            break;
+        }
+        embed[pos] = folded[j];
+    }
+    const std::vector<FieldT> evals =
+        FFT_over_field_subset<FieldT>(embed, current_domain);
+    const size_t nnext = L / stride;
+    std::vector<FieldT> next(nnext);
+    for (size_t j = 0; j < nnext; ++j)
+    {
+        next[j] = evals[j * stride];
+    }
+    return next;
+}
+
+/** Same embed / subsample, butterfly from a per-round basis table. */
+template<typename FieldT>
+std::vector<FieldT> lch_basis_next_codeword_from_folded(
+    const std::vector<FieldT> &folded,
+    const field_subset<FieldT> &current_domain,
+    const std::size_t eta,
+    const lch_basis_tables<FieldT> &tables)
+{
+    const size_t stride = size_t(1) << eta;
+    const size_t L = current_domain.num_elements();
+    const size_t live = folded.empty() ? 0 : (folded.size() - 1) * stride + 1;
+    std::vector<FieldT> embed(live, FieldT::zero());
+    for (size_t j = 0; j < folded.size(); ++j)
+    {
+        const size_t pos = j * stride;
+        if (pos >= live)
+        {
+            break;
+        }
+        embed[pos] = folded[j];
+    }
+    const std::vector<FieldT> evals = lch_basis_btfly<FieldT>(
+        embed, current_domain.dimension(), current_domain.shift(), tables);
+    const size_t nnext = L / stride;
+    std::vector<FieldT> next(nnext);
+    for (size_t j = 0; j < nnext; ++j)
+    {
+        next[j] = evals[j * stride];
+    }
+    return next;
+}
 
 template<typename FieldT>
 FRI_protocol_parameters<FieldT>::FRI_protocol_parameters(const size_t interactive_soundness_bits,
@@ -491,10 +559,8 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
     }
 
     const bool lch_fold =
-        false &&
         get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis &&
-        this->domains_[0].type() == affine_subspace_type &&
-        this->domains_[0].is_cantor_basis();
+        this->domains_[0].type() == affine_subspace_type;
 
     /* LCH coefficients per (interaction, LDT instance). Same polynomial as the
      * evaluation oracles; the transcript is unchanged. */
@@ -515,11 +581,41 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
             lch_coeffs_by_interaction[j] = coeffs0;
         }
     }
+    /* Last-poly LCH coeffs match the verifier's global W-chain only on
+     * Cantor. Standard later rounds use a per-round table; IFFT the last
+     * codeword so evaluation_at_point stays correct. */
+    bool last_poly_from_lch_fold = lch_fold && this->domains_[0].is_cantor_basis();
+    /* After a scaled-next Butterfly we IButterfly into L^{(i+1)}'s own LCH
+     * so the next general round can fold without a large embed. */
+    bool lch_matches_current_domain = lch_fold;
 
     for (std::size_t i = 0; i < this->num_reductions_; ++i)
     {
         std::size_t current_localization_parameter = this->params_.get_localization_parameters()[i];
         const size_t coset_size = 1ull << current_localization_parameter;
+        const bool current_is_cantor = this->domains_[i].is_cantor_basis();
+        const bool current_is_standard =
+            this->domains_[i].type() == affine_subspace_type
+            && this->domains_[i].subspace().is_standard_basis();
+        const bool this_lch_fold =
+            lch_fold && this->domains_[i].type() == affine_subspace_type;
+        if (!this_lch_fold)
+        {
+            last_poly_from_lch_fold = false;
+        }
+
+        lch_basis_tables<FieldT> current_tables;
+        if (this_lch_fold && !current_is_cantor)
+        {
+            if (current_is_standard)
+            {
+                lch_copy_standard_prefix(current_tables, this->domains_[i].dimension());
+            }
+            else
+            {
+                lch_fill_basis_tables(current_tables, this->domains_[i].basis());
+            }
+        }
 
         /** Send over the oracle produced for each interaction.
          *  When i is 0, it has already been submitted. */
@@ -548,30 +644,65 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
             libff::enter_block("evaluating next FRI codeword");
             for (size_t ldt_index = 0; ldt_index < this->poly_handles_.size(); ldt_index++)
             {
-                if (lch_fold)
+                if (this_lch_fold)
                 {
-                    lch_coeffs_by_interaction[j][ldt_index] = lch_fri_fold(
-                        lch_coeffs_by_interaction[j][ldt_index],
-                        current_localization_parameter,
-                        x_i);
-                    /* Same evaluations the Lagrange fold would have written. */
-                    const field_subset<FieldT> &next_domain = this->domains_[i + 1];
-                    if (next_domain.is_cantor_basis())
+                    if (current_is_cantor || current_is_standard)
+                    {
+                        lch_coeffs_by_interaction[j][ldt_index] = lch_fri_fold(
+                            lch_coeffs_by_interaction[j][ldt_index],
+                            current_localization_parameter,
+                            x_i);
+                    }
+                    else
+                    {
+                        if (!lch_matches_current_domain)
+                        {
+                            lch_coeffs_by_interaction[j][ldt_index] = lch_basis_ibtfly<FieldT>(
+                                *multi_f_i_evaluations_by_interaction[j][ldt_index].get(),
+                                this->domains_[i].dimension(),
+                                this->domains_[i].shift(),
+                                current_tables);
+                        }
+                        lch_coeffs_by_interaction[j][ldt_index] = lch_fri_fold(
+                            lch_coeffs_by_interaction[j][ldt_index],
+                            current_localization_parameter,
+                            x_i,
+                            current_tables);
+                    }
+                    if (current_is_cantor)
                     {
                         multi_f_i_evaluations_by_interaction[j][ldt_index] =
                             std::make_shared<std::vector<FieldT>>(
                                 FFT_over_field_subset<FieldT>(
                                     lch_coeffs_by_interaction[j][ldt_index],
-                                    next_domain));
+                                    this->domains_[i + 1]));
+                        lch_matches_current_domain = true;
                     }
                     else
                     {
-                        /* Later FRI domains are localizer images: Gao–Mateer on monomials. */
+                        /* y-LCH Butterfly on L^{(i+1)}/z_η (next-domain size). */
                         multi_f_i_evaluations_by_interaction[j][ldt_index] =
                             std::make_shared<std::vector<FieldT>>(
-                                additive_FFT<FieldT>(
-                                    lch_to_monomial(lch_coeffs_by_interaction[j][ldt_index]),
-                                    next_domain.subspace()));
+                                lch_evals_of_y_lch_on_z_image<FieldT>(
+                                    lch_coeffs_by_interaction[j][ldt_index],
+                                    this->domains_[i + 1],
+                                    current_localization_parameter,
+                                    current_tables));
+                        if (i + 1 < this->num_reductions_)
+                        {
+                            lch_basis_tables<FieldT> next_tables;
+                            lch_fill_basis_tables(next_tables, this->domains_[i + 1].basis());
+                            lch_coeffs_by_interaction[j][ldt_index] = lch_basis_ibtfly<FieldT>(
+                                *multi_f_i_evaluations_by_interaction[j][ldt_index].get(),
+                                this->domains_[i + 1].dimension(),
+                                this->domains_[i + 1].shift(),
+                                next_tables);
+                            lch_matches_current_domain = true;
+                        }
+                        else
+                        {
+                            lch_matches_current_domain = false;
+                        }
                     }
                 }
                 else
@@ -594,7 +725,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
         for (size_t ldt_index = 0; ldt_index < this->poly_handles_.size(); ldt_index++)
         {
             std::vector<FieldT> final_poly_coeffs;
-            if (lch_fold)
+            if (last_poly_from_lch_fold)
             {
                 /* Already LCH coefficients; IBTFLY of the last codeword would
                  * produce the same vector. */

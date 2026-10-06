@@ -361,7 +361,9 @@ void aurora_iop<FieldT>::produce_proof(const r1cs_primary_input<FieldT> &primary
     this->protocol_->submit_witness_oracles(primary_input, auxiliary_input);
     this->LDT_reducer_->submit_masking_polynomial();
     this->IOP_.signal_prover_round_done();
+    libff::enter_block("Aurora encoded protocol proof");
     this->protocol_->calculate_and_submit_proof();
+    libff::leave_block("Aurora encoded protocol proof");
     this->IOP_.signal_prover_round_done(); /* LDT will send a challenge */
     this->LDT_reducer_->calculate_and_submit_proof(); /* and signal done internally */
 }

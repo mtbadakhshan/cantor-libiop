@@ -175,12 +175,15 @@ aurora_snark_argument<FieldT, hash_type> aurora_snark_prover(
     libff::enter_block("Aurora SNARK prover");
     parameters.print();
 
+    libff::enter_block("Aurora prover initialization");
     bcs_prover<FieldT, hash_type> IOP(parameters.bcs_params_);
     aurora_iop<FieldT> full_protocol(IOP, constraint_system, parameters.iop_params_);
     full_protocol.register_interactions();
     IOP.seal_interaction_registrations();
     full_protocol.register_queries();
     IOP.seal_query_registrations();
+
+    libff::leave_block("Aurora prover initialization");
 
     full_protocol.produce_proof(primary_input, auxiliary_input);
 

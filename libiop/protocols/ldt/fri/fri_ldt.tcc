@@ -567,6 +567,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
     std::vector<std::vector<std::vector<FieldT>>> lch_coeffs_by_interaction;
     if (lch_fold)
     {
+        libff::enter_block("FRI LCH initial interpolation");
         std::vector<std::vector<FieldT>> coeffs0(this->poly_handles_.size());
         for (size_t ldt_index = 0; ldt_index < this->poly_handles_.size(); ldt_index++)
         {
@@ -580,6 +581,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
         {
             lch_coeffs_by_interaction[j] = coeffs0;
         }
+        libff::leave_block("FRI LCH initial interpolation");
     }
     /* Last-poly LCH coeffs match the verifier's global W-chain only on
      * Cantor. Standard later rounds use a per-round table; IFFT the last
@@ -646,6 +648,8 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
             {
                 if (this_lch_fold)
                 {
+                    libff::enter_block("FRI LCH fold");
+                    libff::enter_block("FRI LCH coefficient mix");
                     if (current_is_cantor || current_is_standard)
                     {
                         lch_coeffs_by_interaction[j][ldt_index] = lch_fri_fold(
@@ -669,6 +673,8 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                             x_i,
                             current_tables);
                     }
+                    libff::leave_block("FRI LCH coefficient mix");
+                    libff::enter_block("FRI LCH output evaluation");
                     if (current_is_cantor)
                     {
                         multi_f_i_evaluations_by_interaction[j][ldt_index] =
@@ -677,6 +683,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                                     lch_coeffs_by_interaction[j][ldt_index],
                                     this->domains_[i + 1]));
                         lch_matches_current_domain = true;
+                        libff::leave_block("FRI LCH output evaluation");
                     }
                     else
                     {
@@ -688,8 +695,10 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                                     this->domains_[i + 1],
                                     current_localization_parameter,
                                     current_tables));
+                        libff::leave_block("FRI LCH output evaluation");
                         if (i + 1 < this->num_reductions_)
                         {
+                            libff::enter_block("FRI LCH next basis conversion");
                             lch_basis_tables<FieldT> next_tables;
                             lch_fill_basis_tables(next_tables, this->domains_[i + 1].basis());
                             lch_coeffs_by_interaction[j][ldt_index] = lch_basis_ibtfly<FieldT>(
@@ -697,6 +706,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                                 this->domains_[i + 1].dimension(),
                                 this->domains_[i + 1].shift(),
                                 next_tables);
+                            libff::leave_block("FRI LCH next basis conversion");
                             lch_matches_current_domain = true;
                         }
                         else
@@ -704,14 +714,17 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                             lch_matches_current_domain = false;
                         }
                     }
+                    libff::leave_block("FRI LCH fold");
                 }
                 else
                 {
+                    libff::enter_block("FRI evaluation fold");
                     multi_f_i_evaluations_by_interaction[j][ldt_index] = evaluate_next_f_i_over_entire_domain(
                         multi_f_i_evaluations_by_interaction[j][ldt_index],
                         this->domains_[i],
                         coset_size,
                         x_i);
+                    libff::leave_block("FRI evaluation fold");
                 }
             }
             libff::leave_block("evaluating next FRI codeword");

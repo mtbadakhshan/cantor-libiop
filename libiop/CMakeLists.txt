@@ -37,6 +37,9 @@ target_include_directories(
 
 # BENCHMARKING
 
+add_executable(benchmark_aurora_paper benchmarks/benchmark_aurora_paper.cpp)
+target_link_libraries(benchmark_aurora_paper iop)
+
 add_executable(benchmark_aurora benchmarks/benchmark_aurora.cpp)
 target_link_libraries(benchmark_aurora iop benchmark)
 

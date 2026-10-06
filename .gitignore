@@ -40,3 +40,8 @@ DartConfiguration.tcl
 .ninja_deps
 .ninja_log
 build.ninja
+
+# Paper benchmark artifacts
+/build-paper/
+/benchmark_results/
+/aurora_lch_prover*.json

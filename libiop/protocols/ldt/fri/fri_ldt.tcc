@@ -661,7 +661,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                     {
                         if (!lch_matches_current_domain)
                         {
-                            lch_coeffs_by_interaction[j][ldt_index] = lch_basis_ibtfly<FieldT>(
+                            lch_coeffs_by_interaction[j][ldt_index] = additive_IFFT_wrapper<FieldT>(
                                 *multi_f_i_evaluations_by_interaction[j][ldt_index].get(),
                                 this->domains_[i].dimension(),
                                 this->domains_[i].shift(),
@@ -690,7 +690,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                         /* y-LCH Butterfly on L^{(i+1)}/z_η (next-domain size). */
                         multi_f_i_evaluations_by_interaction[j][ldt_index] =
                             std::make_shared<std::vector<FieldT>>(
-                                lch_evals_of_y_lch_on_z_image<FieldT>(
+                                additive_FFT_wrapper<FieldT>(
                                     lch_coeffs_by_interaction[j][ldt_index],
                                     this->domains_[i + 1],
                                     current_localization_parameter,
@@ -701,7 +701,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                             libff::enter_block("FRI LCH next basis conversion");
                             lch_basis_tables<FieldT> next_tables;
                             lch_fill_basis_tables(next_tables, this->domains_[i + 1].basis());
-                            lch_coeffs_by_interaction[j][ldt_index] = lch_basis_ibtfly<FieldT>(
+                            lch_coeffs_by_interaction[j][ldt_index] = additive_IFFT_wrapper<FieldT>(
                                 *multi_f_i_evaluations_by_interaction[j][ldt_index].get(),
                                 this->domains_[i + 1].dimension(),
                                 this->domains_[i + 1].shift(),

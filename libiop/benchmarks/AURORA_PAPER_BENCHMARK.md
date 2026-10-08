@@ -85,8 +85,11 @@ Do not sum a parent stage with its children. In particular:
 * `FRI LCH fold` contains coefficient mixing, output evaluation, and (on general
   domains) next-round basis conversion. Cantor does not execute the conversion.
 * `Construct Merkle tree` and FFT-wrapper rows are cross-cutting subtotals already
-  included in protocol stages. FFT-wrapper totals do not include direct butterfly
-  calls in the LCH FRI implementation; use the FRI-specific rows for those.
+  included in protocol stages. Both LCH FRI paths route output evaluation through
+  the FFT wrapper; the general-basis path also routes next-round basis conversion
+  through the IFFT wrapper. These totals overlap the FRI-specific rows. Earlier
+  benchmark binaries omitted the general-basis FRI butterflies from the wrapper
+  totals; regenerate those measurements before comparing the updated rows.
 
 For a compact paper table, select total prover time, witness construction,
 encoded protocol proof, LDT/FRI proof, and Merkle construction, clearly labeling

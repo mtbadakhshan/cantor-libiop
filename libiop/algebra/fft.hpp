@@ -20,6 +20,9 @@
 
 namespace libiop {
 
+template<typename FieldT>
+struct lch_basis_tables;
+
 /** When the evaluation domain uses the Cantor special basis, additive_FFT_wrapper
  *  can call either the LCH implementation or cantor:: (depends/additive-fft/C++/Cantor).
  *  Default is LCH. Benchmarks may switch per thread without recompiling. */
@@ -67,6 +70,25 @@ std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
 template<typename FieldT>
 std::vector<FieldT> additive_IFFT_wrapper(const std::vector<FieldT> &v,
                                           const affine_subspace<FieldT> &H);
+
+/** Evaluate folded tail-LCH coefficients on next_domain / z_eta, in
+ *  next_domain order. Explicit tables preserve the FRI coefficient basis;
+ *  the ordinary domain-dispatch overload cannot infer this basis. */
+template<typename FieldT>
+std::vector<FieldT> additive_FFT_wrapper(
+    const std::vector<FieldT> &v,
+    const field_subset<FieldT> &next_domain,
+    const std::size_t eta,
+    const lch_basis_tables<FieldT> &current_tables);
+
+/** Interpolate into an explicitly supplied LCH basis, independently of the
+ *  global polynomial-basis setting. Uses the same timer as the domain wrapper. */
+template<typename FieldT>
+std::vector<FieldT> additive_IFFT_wrapper(
+    const std::vector<FieldT> &v,
+    const std::size_t domain_dim,
+    const FieldT &shift,
+    const lch_basis_tables<FieldT> &tables);
 
 template<typename FieldT>
 std::vector<FieldT> multiplicative_FFT(const std::vector<FieldT> &poly_coeffs,

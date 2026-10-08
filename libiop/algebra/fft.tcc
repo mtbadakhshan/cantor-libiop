@@ -286,6 +286,33 @@ std::vector<FieldT> monomials_to_lch_coeffs(const std::vector<FieldT> &monomials
 }
 
 template<typename FieldT>
+std::vector<FieldT> additive_FFT_wrapper(
+    const std::vector<FieldT> &v,
+    const field_subset<FieldT> &next_domain,
+    const std::size_t eta,
+    const lch_basis_tables<FieldT> &current_tables)
+{
+    libff::enter_block("Call to additive_FFT_wrapper");
+    auto result = lch_evals_of_y_lch_on_z_image<FieldT>(
+        v, next_domain, eta, current_tables);
+    libff::leave_block("Call to additive_FFT_wrapper");
+    return result;
+}
+
+template<typename FieldT>
+std::vector<FieldT> additive_IFFT_wrapper(
+    const std::vector<FieldT> &v,
+    const std::size_t domain_dim,
+    const FieldT &shift,
+    const lch_basis_tables<FieldT> &tables)
+{
+    libff::enter_block("Call to additive_IFFT_wrapper");
+    auto result = lch_basis_ibtfly<FieldT>(v, domain_dim, shift, tables);
+    libff::leave_block("Call to additive_IFFT_wrapper");
+    return result;
+}
+
+template<typename FieldT>
 std::vector<FieldT> additive_FFT_wrapper(const std::vector<FieldT> &v,
                                          const affine_subspace<FieldT> &H)
 {

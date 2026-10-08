@@ -587,9 +587,6 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
      * Cantor. Standard later rounds use a per-round table; IFFT the last
      * codeword so evaluation_at_point stays correct. */
     bool last_poly_from_lch_fold = lch_fold && this->domains_[0].is_cantor_basis();
-    /* After a scaled-next Butterfly we IButterfly into L^{(i+1)}'s own LCH
-     * so the next general round can fold without a large embed. */
-    bool lch_matches_current_domain = lch_fold;
 
     for (std::size_t i = 0; i < this->num_reductions_; ++i)
     {
@@ -659,14 +656,6 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                     }
                     else
                     {
-                        if (!lch_matches_current_domain)
-                        {
-                            lch_coeffs_by_interaction[j][ldt_index] = additive_IFFT_wrapper<FieldT>(
-                                *multi_f_i_evaluations_by_interaction[j][ldt_index].get(),
-                                this->domains_[i].dimension(),
-                                this->domains_[i].shift(),
-                                current_tables);
-                        }
                         lch_coeffs_by_interaction[j][ldt_index] = lch_fri_fold(
                             lch_coeffs_by_interaction[j][ldt_index],
                             current_localization_parameter,
@@ -682,7 +671,6 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                                 FFT_over_field_subset<FieldT>(
                                     lch_coeffs_by_interaction[j][ldt_index],
                                     this->domains_[i + 1]));
-                        lch_matches_current_domain = true;
                         libff::leave_block("FRI LCH output evaluation");
                     }
                     else
@@ -698,20 +686,44 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                         libff::leave_block("FRI LCH output evaluation");
                         if (i + 1 < this->num_reductions_)
                         {
+                            /* The tail basis in Y = Ŵ_η(x) is the LCH basis of
+                             * L^{(i+1)} scaled by 1/z_η, and normalized factors
+                             * are scale invariant: Ŵ^{tail}_r(y/z_η) = Ŵ^{(i+1)}_r(y)
+                             * for r >= 1. Only the unnormalized bit-0 factor
+                             * differs (y/z_η vs y), so the folded coefficients
+                             * become L^{(i+1)}-LCH coefficients by scaling the
+                             * odd indices by 1/z_η; no IButterfly needed. */
                             libff::enter_block("FRI LCH next basis conversion");
+                            const FieldT z_eta = current_tables.z[current_localization_parameter];
+                            if (z_eta != FieldT::one())
+                            {
+                                const FieldT z_eta_inv = z_eta.inverse();
+                                std::vector<FieldT> &folded = lch_coeffs_by_interaction[j][ldt_index];
+                                for (size_t t = 1; t < folded.size(); t += 2)
+                                {
+                                    folded[t] *= z_eta_inv;
+                                }
+                            }
+                            libff::leave_block("FRI LCH next basis conversion");
+#ifdef LIBIOP_CHECK_LCH_FRI_FOLD
+                            /* Cross-check against re-interpolating the committed codeword. */
                             lch_basis_tables<FieldT> next_tables;
                             lch_fill_basis_tables(next_tables, this->domains_[i + 1].basis());
-                            lch_coeffs_by_interaction[j][ldt_index] = additive_IFFT_wrapper<FieldT>(
+                            const std::vector<FieldT> reinterpolated = additive_IFFT_wrapper<FieldT>(
                                 *multi_f_i_evaluations_by_interaction[j][ldt_index].get(),
                                 this->domains_[i + 1].dimension(),
                                 this->domains_[i + 1].shift(),
                                 next_tables);
-                            libff::leave_block("FRI LCH next basis conversion");
-                            lch_matches_current_domain = true;
-                        }
-                        else
-                        {
-                            lch_matches_current_domain = false;
+                            const std::vector<FieldT> &folded = lch_coeffs_by_interaction[j][ldt_index];
+                            for (size_t t = 0; t < reinterpolated.size(); ++t)
+                            {
+                                const FieldT expected = t < folded.size() ? folded[t] : FieldT::zero();
+                                if (reinterpolated[t] != expected)
+                                {
+                                    throw std::logic_error("FRI LCH: rescaled folded coefficients differ from the re-interpolated codeword");
+                                }
+                            }
+#endif // LIBIOP_CHECK_LCH_FRI_FOLD
                         }
                     }
                     libff::leave_block("FRI LCH fold");

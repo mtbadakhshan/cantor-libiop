@@ -583,10 +583,13 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
         }
         libff::leave_block("FRI LCH initial interpolation");
     }
-    /* Last-poly LCH coeffs match the verifier's global W-chain only on
-     * Cantor. Standard later rounds use a per-round table; IFFT the last
-     * codeword so evaluation_at_point stays correct. */
-    bool last_poly_from_lch_fold = lch_fold && this->domains_[0].is_cantor_basis();
+    /* The folded vector of round i is in the tail basis of Y = Ŵ_η(x), which
+     * is the LCH basis of L^{(i+1)} scaled by 1/z_η. Normalized factors are
+     * scale invariant, Ŵ^{tail}_r(y/z_η) = Ŵ^{(i+1)}_r(y) for r >= 1; only
+     * the unnormalized bit-0 factor differs (y/z_η vs y). Round i+1 reuses
+     * the vector as is and absorbs 1/z_η into its odd-t weights, so no
+     * IButterfly or coefficient rescaling is needed. */
+    FieldT lch_bit0_scale = FieldT::one();
 
     for (std::size_t i = 0; i < this->num_reductions_; ++i)
     {
@@ -598,10 +601,6 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
             && this->domains_[i].subspace().is_standard_basis();
         const bool this_lch_fold =
             lch_fold && this->domains_[i].type() == affine_subspace_type;
-        if (!this_lch_fold)
-        {
-            last_poly_from_lch_fold = false;
-        }
 
         lch_basis_tables<FieldT> current_tables;
         if (this_lch_fold && !current_is_cantor)
@@ -652,7 +651,8 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                         lch_coeffs_by_interaction[j][ldt_index] = lch_fri_fold(
                             lch_coeffs_by_interaction[j][ldt_index],
                             current_localization_parameter,
-                            x_i);
+                            x_i,
+                            lch_bit0_scale);
                     }
                     else
                     {
@@ -660,7 +660,8 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                             lch_coeffs_by_interaction[j][ldt_index],
                             current_localization_parameter,
                             x_i,
-                            current_tables);
+                            current_tables,
+                            lch_bit0_scale);
                     }
                     libff::leave_block("FRI LCH coefficient mix");
                     libff::enter_block("FRI LCH output evaluation");
@@ -684,29 +685,13 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                                     current_localization_parameter,
                                     current_tables));
                         libff::leave_block("FRI LCH output evaluation");
+#ifdef LIBIOP_CHECK_LCH_FRI_FOLD
                         if (i + 1 < this->num_reductions_)
                         {
-                            /* The tail basis in Y = Ŵ_η(x) is the LCH basis of
-                             * L^{(i+1)} scaled by 1/z_η, and normalized factors
-                             * are scale invariant: Ŵ^{tail}_r(y/z_η) = Ŵ^{(i+1)}_r(y)
-                             * for r >= 1. Only the unnormalized bit-0 factor
-                             * differs (y/z_η vs y), so the folded coefficients
-                             * become L^{(i+1)}-LCH coefficients by scaling the
-                             * odd indices by 1/z_η; no IButterfly needed. */
-                            libff::enter_block("FRI LCH next basis conversion");
-                            const FieldT z_eta = current_tables.z[current_localization_parameter];
-                            if (z_eta != FieldT::one())
-                            {
-                                const FieldT z_eta_inv = z_eta.inverse();
-                                std::vector<FieldT> &folded = lch_coeffs_by_interaction[j][ldt_index];
-                                for (size_t t = 1; t < folded.size(); t += 2)
-                                {
-                                    folded[t] *= z_eta_inv;
-                                }
-                            }
-                            libff::leave_block("FRI LCH next basis conversion");
-#ifdef LIBIOP_CHECK_LCH_FRI_FOLD
-                            /* Cross-check against re-interpolating the committed codeword. */
+                            /* Cross-check against re-interpolating the committed
+                             * codeword: the stored L^{(i+1)}-LCH coefficients are
+                             * the folded ones with odd indices scaled by 1/z_η. */
+                            const FieldT &z_eta_inv = current_tables.z_inv[current_localization_parameter];
                             lch_basis_tables<FieldT> next_tables;
                             lch_fill_basis_tables(next_tables, this->domains_[i + 1].basis());
                             const std::vector<FieldT> reinterpolated = additive_IFFT_wrapper<FieldT>(
@@ -717,14 +702,18 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
                             const std::vector<FieldT> &folded = lch_coeffs_by_interaction[j][ldt_index];
                             for (size_t t = 0; t < reinterpolated.size(); ++t)
                             {
-                                const FieldT expected = t < folded.size() ? folded[t] : FieldT::zero();
+                                FieldT expected = t < folded.size() ? folded[t] : FieldT::zero();
+                                if (t & 1)
+                                {
+                                    expected *= z_eta_inv;
+                                }
                                 if (reinterpolated[t] != expected)
                                 {
-                                    throw std::logic_error("FRI LCH: rescaled folded coefficients differ from the re-interpolated codeword");
+                                    throw std::logic_error("FRI LCH: folded coefficients differ from the re-interpolated codeword");
                                 }
                             }
-#endif // LIBIOP_CHECK_LCH_FRI_FOLD
                         }
+#endif // LIBIOP_CHECK_LCH_FRI_FOLD
                     }
                     libff::leave_block("FRI LCH fold");
                 }
@@ -741,26 +730,28 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
             }
             libff::leave_block("evaluating next FRI codeword");
         }
+
+        lch_bit0_scale = FieldT::one();
+        if (this_lch_fold && !current_is_cantor)
+        {
+            lch_bit0_scale = current_tables.z_inv[current_localization_parameter];
+        }
     }
 
     /* Finally, recover the coefficients of final polynomial using
-       polynomial interpolation and directly send them. */
+       polynomial interpolation and directly send them. With LCH folding they
+       are still sent in the monomial basis, so the proof format and the
+       verifier are the same as in the monomial configuration. */
     for (size_t j = 0; j < this->params_.interactive_repetitions(); j++)
     {
         for (size_t ldt_index = 0; ldt_index < this->poly_handles_.size(); ldt_index++)
         {
-            std::vector<FieldT> final_poly_coeffs;
-            if (last_poly_from_lch_fold)
-            {
-                /* Already LCH coefficients; IBTFLY of the last codeword would
-                 * produce the same vector. */
-                final_poly_coeffs = std::move(lch_coeffs_by_interaction[j][ldt_index]);
-            }
-            else
-            {
-                final_poly_coeffs = IFFT_over_field_subset<FieldT>(
-                    *multi_f_i_evaluations_by_interaction[j][ldt_index].get(), this->domains_[this->num_reductions_]);
-            }
+            const std::vector<FieldT> &final_evals =
+                *multi_f_i_evaluations_by_interaction[j][ldt_index].get();
+            const field_subset<FieldT> &final_domain = this->domains_[this->num_reductions_];
+            std::vector<FieldT> final_poly_coeffs = lch_fold
+                ? additive_IFFT<FieldT>(final_evals, final_domain.subspace())
+                : IFFT_over_field_subset<FieldT>(final_evals, final_domain);
             final_poly_coeffs.resize(this->final_polynomial_degree_bound_);
             this->IOP_.submit_prover_message(this->final_polynomial_handles_[j][ldt_index], std::move(final_poly_coeffs));
         }
@@ -853,9 +844,16 @@ bool FRI_protocol<FieldT>::predicate_for_query_set(const FRI_query_set &Q)
 
     /* Finally, check that the LAST round polynomial, evaluated at si,
        matches the final interpolation from the loop. */
-    const polynomial<FieldT> last_poly(
-        this->IOP_.receive_prover_message(this->final_polynomial_handles_[Q.interaction_index_][Q.LDT_index_]));
-    const FieldT last_poly_at_si = last_poly.evaluation_at_point(si);
+    /* The final polynomial is in the monomial basis in every configuration
+       (see calculate_and_submit_proof), so evaluate it by Horner's rule
+       rather than through the configurable polynomial basis. */
+    const std::vector<FieldT> last_poly =
+        this->IOP_.receive_prover_message(this->final_polynomial_handles_[Q.interaction_index_][Q.LDT_index_]);
+    FieldT last_poly_at_si = FieldT::zero();
+    for (auto it = last_poly.rbegin(); it != last_poly.rend(); ++it)
+    {
+        last_poly_at_si = last_poly_at_si * si + *it;
+    }
 
     if (last_poly_at_si != last_interpolation)
     {

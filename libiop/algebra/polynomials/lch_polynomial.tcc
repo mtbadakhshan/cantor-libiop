@@ -44,7 +44,8 @@ namespace libiop
     template<typename FieldT>
     std::vector<FieldT> lch_fri_fold(const std::vector<FieldT> &lch_coeffs,
                                      const std::size_t eta,
-                                     const FieldT &x_i)
+                                     const FieldT &x_i,
+                                     const FieldT &bit0_scale)
     {
         const size_t k = size_t(1) << eta;
         std::vector<FieldT> Xt(k, FieldT::one());
@@ -52,6 +53,7 @@ namespace libiop
         {
             FieldT W[64];
             lch_normalized_W_chain(W, eta, x_i, get_lch_evaluation_is_cantor());
+            W[0] *= bit0_scale;
             for (size_t t = 1; t < k; ++t)
             {
                 Xt[t] = Xt[t & (t - 1)] * W[__builtin_ctzll(t)];
@@ -74,7 +76,8 @@ namespace libiop
     std::vector<FieldT> lch_fri_fold(const std::vector<FieldT> &lch_coeffs,
                                      const std::size_t eta,
                                      const FieldT &x_i,
-                                     const lch_basis_tables<FieldT> &tables)
+                                     const lch_basis_tables<FieldT> &tables,
+                                     const FieldT &bit0_scale)
     {
         const size_t k = size_t(1) << eta;
         std::vector<FieldT> Xt(k, FieldT::one());
@@ -82,6 +85,7 @@ namespace libiop
         {
             FieldT W[64];
             lch_normalized_W_chain_from_tables(W, eta, x_i, tables);
+            W[0] *= bit0_scale;
             for (size_t t = 1; t < k; ++t)
             {
                 Xt[t] = Xt[t & (t - 1)] * W[__builtin_ctzll(t)];

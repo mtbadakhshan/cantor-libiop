@@ -231,10 +231,16 @@ size_t lch_shift_dim_from_subspace(const affine_subspace<FieldT> &H)
                 || (FieldT::extension_degree() == 192 && h_shift_words[0] == cantor_in_gf2to192[i][0] && h_shift_words[1] == cantor_in_gf2to192[i][1] && h_shift_words[2] == cantor_in_gf2to192[i][2])
                 || (FieldT::extension_degree() == 256 && h_shift_words[0] == cantor_in_gf2to256[i][0] && h_shift_words[1] == cantor_in_gf2to256[i][1] && h_shift_words[2] == cantor_in_gf2to256[i][2] && h_shift_words[3] == cantor_in_gf2to256[i][3]))
             {
+                /* The Cantor butterflies take shift index 0 as "no shift" and
+                 * otherwise need the shift outside the domain (i >= dim). */
+                if (i == 0 || (size_t)i < H.dimension())
+                {
+                    break;
+                }
                 return (size_t)i;
             }
         }
-        return 0;
+        throw std::invalid_argument("lch_shift_dim_from_subspace: a Cantor-basis domain needs a zero shift or a shift equal to a Cantor basis element beta_i with i >= dimension");
     }
     /* Standard: the shift's bits are the subset of {β_i = 2^i}. */
     size_t bitmask = 0;

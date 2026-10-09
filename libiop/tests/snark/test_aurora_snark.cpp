@@ -119,7 +119,135 @@ TEST(AuroraSnarkStandardLCHTest, SimpleTest) {
 
     EXPECT_TRUE(bit);
 
+    /* The verifier does not depend on the polynomial basis: the same proof
+     * also verifies under the monomial configuration. */
     set_polynomial_basis_config(polynomial_basis_config::monomial_poly_basis);
+    const bool monomial_bit = aurora_snark_verifier<FieldT, hash_type>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        argument,
+        params);
+    EXPECT_TRUE(monomial_bit);
+}
+
+TEST(AuroraSnarkStandardLCHTest, Eta2) {
+    typedef libff::gf256 FieldT;
+    typedef binary_hash_digest hash_type;
+
+    const std::size_t num_constraints = 1 << 10;
+    const std::size_t num_inputs = (1 << 5) - 1;
+    const std::size_t num_variables = (1 << 10) - 1;
+    const size_t security_parameter = 128;
+    const size_t RS_extra_dimensions = 5;
+    const size_t FRI_localization_parameter = 2;
+    const LDT_reducer_soundness_type ldt_reducer_soundness_type = LDT_reducer_soundness_type::proven;
+    const FRI_soundness_type fri_soundness_type = FRI_soundness_type::proven;
+    const field_subset_type domain_type = affine_subspace_type;
+    const bool is_cantor_basis = false;
+
+    set_polynomial_basis_config(polynomial_basis_config::lch_poly_basis);
+
+    r1cs_example<FieldT> r1cs_params = generate_r1cs_example<FieldT>(
+        num_constraints, num_inputs, num_variables);
+    EXPECT_TRUE(r1cs_params.constraint_system_.is_satisfied(
+        r1cs_params.primary_input_, r1cs_params.auxiliary_input_));
+
+    const bool make_zk = true;
+    aurora_snark_parameters<FieldT, hash_type> params(
+        security_parameter,
+        ldt_reducer_soundness_type,
+        fri_soundness_type,
+        blake2b_type,
+        FRI_localization_parameter,
+        RS_extra_dimensions,
+        make_zk,
+        domain_type,
+        is_cantor_basis,
+        num_constraints,
+        num_variables);
+    const aurora_snark_argument<FieldT, hash_type> argument = aurora_snark_prover<FieldT>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        r1cs_params.auxiliary_input_,
+        params);
+
+    const bool bit = aurora_snark_verifier<FieldT, hash_type>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        argument,
+        params);
+
+    EXPECT_TRUE(bit);
+
+    /* The verifier does not depend on the polynomial basis: the same proof
+     * also verifies under the monomial configuration. */
+    set_polynomial_basis_config(polynomial_basis_config::monomial_poly_basis);
+    const bool monomial_bit = aurora_snark_verifier<FieldT, hash_type>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        argument,
+        params);
+    EXPECT_TRUE(monomial_bit);
+}
+
+TEST(AuroraSnarkStandardLCHTest, Eta3) {
+    typedef libff::gf256 FieldT;
+    typedef binary_hash_digest hash_type;
+
+    const std::size_t num_constraints = 1 << 10;
+    const std::size_t num_inputs = (1 << 5) - 1;
+    const std::size_t num_variables = (1 << 10) - 1;
+    const size_t security_parameter = 128;
+    const size_t RS_extra_dimensions = 5;
+    const size_t FRI_localization_parameter = 3;
+    const LDT_reducer_soundness_type ldt_reducer_soundness_type = LDT_reducer_soundness_type::proven;
+    const FRI_soundness_type fri_soundness_type = FRI_soundness_type::proven;
+    const field_subset_type domain_type = affine_subspace_type;
+    const bool is_cantor_basis = false;
+
+    set_polynomial_basis_config(polynomial_basis_config::lch_poly_basis);
+
+    r1cs_example<FieldT> r1cs_params = generate_r1cs_example<FieldT>(
+        num_constraints, num_inputs, num_variables);
+    EXPECT_TRUE(r1cs_params.constraint_system_.is_satisfied(
+        r1cs_params.primary_input_, r1cs_params.auxiliary_input_));
+
+    const bool make_zk = true;
+    aurora_snark_parameters<FieldT, hash_type> params(
+        security_parameter,
+        ldt_reducer_soundness_type,
+        fri_soundness_type,
+        blake2b_type,
+        FRI_localization_parameter,
+        RS_extra_dimensions,
+        make_zk,
+        domain_type,
+        is_cantor_basis,
+        num_constraints,
+        num_variables);
+    const aurora_snark_argument<FieldT, hash_type> argument = aurora_snark_prover<FieldT>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        r1cs_params.auxiliary_input_,
+        params);
+
+    const bool bit = aurora_snark_verifier<FieldT, hash_type>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        argument,
+        params);
+
+    EXPECT_TRUE(bit);
+
+    /* The verifier does not depend on the polynomial basis: the same proof
+     * also verifies under the monomial configuration. */
+    set_polynomial_basis_config(polynomial_basis_config::monomial_poly_basis);
+    const bool monomial_bit = aurora_snark_verifier<FieldT, hash_type>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        argument,
+        params);
+    EXPECT_TRUE(monomial_bit);
 }
 
 TEST(AuroraSnarkCantorLCHFoldTest, SimpleTest) {
@@ -171,7 +299,15 @@ TEST(AuroraSnarkCantorLCHFoldTest, SimpleTest) {
 
     EXPECT_TRUE(bit);
 
+    /* The verifier does not depend on the polynomial basis: the same proof
+     * also verifies under the monomial configuration. */
     set_polynomial_basis_config(polynomial_basis_config::monomial_poly_basis);
+    const bool monomial_bit = aurora_snark_verifier<FieldT, hash_type>(
+        r1cs_params.constraint_system_,
+        r1cs_params.primary_input_,
+        argument,
+        params);
+    EXPECT_TRUE(monomial_bit);
 }
 
 // TEST(AuroraSnarkMultiplicativeTest, SimpleTest) {

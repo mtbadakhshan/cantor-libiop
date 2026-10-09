@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 #include "libiop/algebra/polynomials/poly_basis.hpp"
@@ -20,7 +21,31 @@ struct lch_standard_tables
     static constexpr std::size_t max_dim = 32;
     FieldT w[max_dim][max_dim];
     FieldT z[max_dim];
+    /* Basis-only inverses, so evaluation and butterflies never invert:
+     * z_inv[r] = 1/z_r, w_diag_inv[r] = 1/w[r][r], and chain_inv[r] (r >= 1)
+     * the inverse of the step normalizer of the Ŵ chain at β_r. */
+    FieldT z_inv[max_dim];
+    FieldT w_diag_inv[max_dim];
+    FieldT chain_inv[max_dim];
 };
+
+/** Fill z_inv, w_diag_inv and chain_inv of a table whose w and z are set. */
+template<typename Tables>
+void lch_fill_table_inverses(Tables &tables, const std::size_t dim)
+{
+    using FieldT = typename std::remove_reference<decltype(tables.z[0])>::type;
+    for (std::size_t r = 0; r < dim; ++r)
+    {
+        tables.z_inv[r] = tables.z[r].inverse();
+        tables.w_diag_inv[r] = tables.w[r][r] == FieldT::one() ? FieldT::one() : tables.w[r][r].inverse();
+        tables.chain_inv[r] = FieldT::one();
+        if (r > 0)
+        {
+            const FieldT fe = tables.w[r - 1][r].squared() + tables.w[r - 1][r] * tables.w[r - 1][r - 1];
+            tables.chain_inv[r] = fe.inverse();
+        }
+    }
+}
 
 template<typename FieldT>
 const lch_standard_tables<FieldT> &get_lch_standard_tables()
@@ -62,6 +87,7 @@ const lch_standard_tables<FieldT> &get_lch_standard_tables()
         }
         w_nn_prev.swap(w_nn_cur);
     }
+    lch_fill_table_inverses(tables, D);
 
     initialized = true;
     return tables;
@@ -99,15 +125,14 @@ void lch_normalized_W_chain(FieldT *X, const std::size_t d, const FieldT &x,
         }
         return;
     }
-    const auto &w = get_lch_standard_tables<FieldT>().w;
+    const auto &tables = get_lch_standard_tables<FieldT>();
     if (d > lch_standard_tables<FieldT>::max_dim)
     {
         throw std::invalid_argument("lch_normalized_W_chain: degree exceeds the standard-basis table");
     }
     for (std::size_t r = 1; r < d; ++r)
     {
-        const FieldT fe = w[r - 1][r].squared() + w[r - 1][r] * w[r - 1][r - 1];
-        X[r] = (X[r - 1].squared() + w[r - 1][r - 1] * X[r - 1]) * fe.inverse();
+        X[r] = (X[r - 1].squared() + tables.w[r - 1][r - 1] * X[r - 1]) * tables.chain_inv[r];
     }
 }
 
@@ -249,6 +274,9 @@ struct lch_basis_tables
     std::size_t dim = 0;
     FieldT w[max_dim][max_dim];
     FieldT z[max_dim];
+    FieldT z_inv[max_dim];
+    FieldT w_diag_inv[max_dim];
+    FieldT chain_inv[max_dim];
 };
 
 template<typename FieldT>
@@ -294,6 +322,7 @@ void lch_fill_basis_tables(lch_basis_tables<FieldT> &tables,
         }
         w_nn_prev.swap(w_nn_cur);
     }
+    lch_fill_table_inverses(tables, D);
 }
 
 template<typename FieldT>
@@ -311,8 +340,7 @@ void lch_normalized_W_chain_from_tables(FieldT *X, const std::size_t d, const Fi
     X[0] = x;
     for (std::size_t r = 1; r < d; ++r)
     {
-        const FieldT fe = tables.w[r - 1][r].squared() + tables.w[r - 1][r] * tables.w[r - 1][r - 1];
-        X[r] = (X[r - 1].squared() + tables.w[r - 1][r - 1] * X[r - 1]) * fe.inverse();
+        X[r] = (X[r - 1].squared() + tables.w[r - 1][r - 1] * X[r - 1]) * tables.chain_inv[r];
     }
 }
 
@@ -425,7 +453,7 @@ std::vector<FieldT> lch_basis_ibtfly(const std::vector<FieldT> &evals,
         const unsigned num = n / unit;
         const unsigned unit_2 = unit / 2;
         lch_basis_twiddles(tw, i - 1, domain_dim, Wshift[i - 1], tables);
-        const FieldT wr_inv = tables.w[i - 1][i - 1].inverse();
+        const FieldT &wr_inv = tables.w_diag_inv[i - 1];
         for (unsigned j = 0; j < num; j++)
         {
             const unsigned off = j * unit;
@@ -452,6 +480,9 @@ void lch_copy_standard_prefix(lch_basis_tables<FieldT> &tables, const std::size_
     for (std::size_t i = 0; i < dim; ++i)
     {
         tables.z[i] = src.z[i];
+        tables.z_inv[i] = src.z_inv[i];
+        tables.w_diag_inv[i] = src.w_diag_inv[i];
+        tables.chain_inv[i] = src.chain_inv[i];
         for (std::size_t j = 0; j < dim; ++j)
         {
             tables.w[i][j] = src.w[i][j];
@@ -473,6 +504,10 @@ void lch_fill_tail_tables(lch_basis_tables<FieldT> &tail,
     for (std::size_t k = 0; k < tail.dim; ++k)
     {
         tail.z[k] = src.z[eta + k];
+        tail.z_inv[k] = src.z_inv[eta + k];
+        tail.w_diag_inv[k] = src.w_diag_inv[eta + k];
+        /* chain_inv[k] depends on w[k-1][k-1..k], which the tail shares. */
+        tail.chain_inv[k] = k == 0 ? FieldT::one() : src.chain_inv[eta + k];
         for (std::size_t s = 0; s < tail.dim; ++s)
         {
             tail.w[k][s] = src.w[eta + k][eta + s];
@@ -499,10 +534,9 @@ std::vector<FieldT> lch_evals_of_y_lch_on_z_image(
     FieldT shift_y = next_domain.shift();
     if (eta > 0)
     {
-        const FieldT z = current_tables.z[eta];
-        if (z != FieldT::one())
+        if (current_tables.z[eta] != FieldT::one())
         {
-            shift_y *= z.inverse();
+            shift_y *= current_tables.z_inv[eta];
         }
     }
     return lch_basis_btfly<FieldT>(y_lch, next_domain.dimension(), shift_y, tail);

@@ -82,12 +82,12 @@ Do not sum a parent stage with its children. In particular:
 * `evaluating next FRI codeword` compares the folding loop across all four
   configurations. LCH's initial interpolation is outside that loop and is reported
   separately; include it when comparing the full arithmetic cost of the paths.
-* `FRI LCH fold` contains coefficient mixing, output evaluation, and (on general
-  domains) next-round basis conversion. Cantor does not execute the conversion.
+* `FRI LCH fold` contains coefficient mixing and output evaluation. On every
+  basis the folded coefficients are the next round's input, so there is no
+  next-round basis conversion.
 * `Construct Merkle tree` and FFT-wrapper rows are cross-cutting subtotals already
   included in protocol stages. Both LCH FRI paths route output evaluation through
-  the FFT wrapper; the general-basis path also routes next-round basis conversion
-  through the IFFT wrapper. These totals overlap the FRI-specific rows. Earlier
+  the FFT wrapper. These totals overlap the FRI-specific rows. Earlier
   benchmark binaries omitted the general-basis FRI butterflies from the wrapper
   totals; regenerate those measurements before comparing the updated rows.
 

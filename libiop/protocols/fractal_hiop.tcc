@@ -225,6 +225,7 @@ fractal_iop<FieldT>::fractal_iop(
     const field_subset<FieldT> index_domain = parameters.index_domain();
     const field_subset<FieldT> matrix_domain = parameters.matrix_domain();
     const field_subset<FieldT> codeword_domain = parameters.codeword_domain();
+    set_lch_evaluation_is_cantor(codeword_domain.is_cantor_basis());
 
     this->index_domain_handle_ = IOP.register_domain(index_domain);
     this->matrix_domain_handle_ = IOP.register_domain(matrix_domain);

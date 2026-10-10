@@ -140,7 +140,7 @@ linear_subspace<FieldT> linear_subspace<FieldT>::random_linear_subspace(const st
 template<typename FieldT>
 bool linear_subspace<FieldT>::operator==(const linear_subspace<FieldT> &other) const
 {
-    return this->basis_ == other->basis_;
+    return this->basis_ == other.basis_;
 }
 
 template<typename FieldT>

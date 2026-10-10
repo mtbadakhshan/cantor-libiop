@@ -5,6 +5,7 @@
 #include "libiop/algebra/fft.hpp"
 #include "libiop/algebra/utils.hpp"
 #include "libiop/algebra/polynomials/polynomial.hpp"
+#include "libiop/algebra/polynomials/poly_basis.hpp"
 
 namespace libiop {
 
@@ -225,6 +226,37 @@ template<typename FieldT>
 void rational_sumcheck_protocol<FieldT>::calculate_and_submit_proof(
     const std::vector<FieldT> &rational_function_over_summation_domain)
 {
+    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis &&
+        this->field_subset_type_ == affine_subspace_type)
+    {
+        /** The verifier's constraint oracle subtracts eps^{-1} * sum * x^{|H| - 1}.
+         *  In the LCH basis the coefficient of X_{|H|-1} is not that of x^{|H|-1},
+         *  so we sum f over H directly and subtract eps^{-1} * sum * a^{|H| - 1}
+         *  on H before interpolating. The result has degree < |H| - 1. */
+        FieldT sum = FieldT::zero();
+        for (const FieldT &v : rational_function_over_summation_domain)
+        {
+            sum += v;
+        }
+        this->claimed_sum_ = sum;
+        const vanishing_polynomial<FieldT> Z_H(this->summation_domain_);
+        const FieldT eps = Z_H.get_linearized_polynomial().coefficients()[1];
+        const std::vector<FieldT> correction = constant_times_subspace_to_order_H_minus_1(
+            eps.inverse() * sum, this->summation_domain_.subspace(), this->summation_domain_size_);
+        std::vector<FieldT> p_over_summation_domain(rational_function_over_summation_domain);
+        for (std::size_t i = 0; i < p_over_summation_domain.size(); ++i)
+        {
+            p_over_summation_domain[i] -= correction[i];
+        }
+        std::vector<FieldT> reextended_poly_coeffs = IFFT_over_field_subset<FieldT>(
+            p_over_summation_domain, this->summation_domain_);
+        reextended_poly_coeffs.pop_back();
+        this->IOP_.submit_oracle(this->reextended_oracle_handle_,
+            FFT_over_field_subset<FieldT>(reextended_poly_coeffs, this->codeword_domain_));
+        this->constraint_oracle_->set_claimed_sum(this->claimed_sum_);
+        return;
+    }
+
     std::vector<FieldT> reextended_poly_coeffs = IFFT_over_field_subset<FieldT>(
         rational_function_over_summation_domain, this->summation_domain_);
     if (this->field_subset_type_ == multiplicative_coset_type)

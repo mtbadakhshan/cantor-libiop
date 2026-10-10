@@ -20,7 +20,7 @@ int main(int argc, char **argv)
 #endif
         const int size = std::stoi(argv[1]), reps = std::stoi(argv[2]), warmups = std::stoi(argv[3]);
         const int eta = std::stoi(argv[4]), rs_extra = std::stoi(argv[5]);
-        if (size < 9 || size > 19 || reps < 1 || warmups < 1 || eta < 1 || eta > 3 || rs_extra < 1 || rs_extra > 8)
+        if (size < 9 || size > 19 || reps < 1 || warmups < 1 || eta < 1 || eta > 4 || rs_extra < 1 || rs_extra > 8)
             throw std::invalid_argument("Invalid size/repetitions/warmups/eta/rate parameters");
         std::ofstream out(argv[6]);
         if (!out) throw std::runtime_error("Cannot open output CSV");

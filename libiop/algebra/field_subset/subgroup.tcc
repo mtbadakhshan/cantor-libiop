@@ -206,7 +206,7 @@ libfqfft::basic_radix2_domain<FieldT> multiplicative_subgroup_base<FieldT>::FFT_
 template<typename FieldT>
 bool multiplicative_subgroup_base<FieldT>::operator==(const multiplicative_subgroup_base<FieldT> &other) const
 {
-    return this->g_ == other->g_ && this->order_ == other->order_;
+    return this->g_ == other.g_ && this->order_ == other.order_;
 }
 
 template<typename FieldT>

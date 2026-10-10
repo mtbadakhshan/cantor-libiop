@@ -23,7 +23,7 @@ def main():
     p.add_argument('--max-log', type=int, default=19)
     p.add_argument('--reps', type=int, default=20, help='Measured proofs per configuration and size')
     p.add_argument('--warmups', type=int, default=1, help='Additional discarded proofs per configuration and size')
-    p.add_argument('--eta', type=int, default=1, choices=[1, 2, 3])
+    p.add_argument('--eta', type=int, default=1, choices=[1, 2, 3, 4])
     p.add_argument('--rs-extra', type=int, default=5)
     args = p.parse_args()
     if not (9 <= args.min_log <= args.max_log <= 19 and args.reps > 0 and args.warmups > 0 and 1 <= args.rs_extra <= 8):

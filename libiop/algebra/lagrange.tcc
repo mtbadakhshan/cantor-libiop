@@ -12,7 +12,7 @@ void lagrange_cache<FieldT>::construct_internal(const affine_subspace<FieldT> &d
     if (domain.is_cantor_basis()){
         this->c_ = FieldT::one();
     } else {
-        this->c_ = this->vp_.get_linearized_polynomial().coefficients()[1].inverse();
+        this->c_ = this->vp_.formal_derivative_at_point(FieldT::zero()).inverse();
     }
 }
 

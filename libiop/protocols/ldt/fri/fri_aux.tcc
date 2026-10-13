@@ -282,7 +282,7 @@ FieldT additive_evaluate_next_f_i_at_coset(
         unshifted_vp.evaluation_at_point(shift);
     const FieldT c = (localizer_domain.is_cantor_basis()) ? 
                     FieldT::one() :
-                    unshifted_vp.get_linearized_polynomial().coefficients()[1].inverse();
+                    unshifted_vp.formal_derivative_at_point(FieldT::zero()).inverse();
 
     const bool x_in_domain = vp_x == FieldT::zero();
     /* In binary fields addition and subtraction are the same operation */

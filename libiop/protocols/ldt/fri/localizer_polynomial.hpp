@@ -36,6 +36,9 @@ class localizer_polynomial {
     explicit localizer_polynomial(const field_subset<FieldT> domain);
     FieldT evaluation_at_point(const FieldT &evalpoint) const;
     linearized_polynomial<FieldT> get_linearized_polynomial() const;
+    /** The additive localizer is linearized, so its formal derivative is its
+     *  linear coefficient. */
+    FieldT formal_derivative_at_point(const FieldT &evalpoint) const;
 };
 
 }

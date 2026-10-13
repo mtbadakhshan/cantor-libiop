@@ -41,7 +41,7 @@ public:
     {
         if (this->field_subset_type_ == affine_subspace_type) {
             /* coefficient for the linear term of the vanishing polynomial */
-            this->eps_ = this->Z_.get_linearized_polynomial().coefficients()[1];
+            this->eps_ = this->Z_.formal_derivative_at_point(FieldT::zero());
         }
     }
 
@@ -240,7 +240,7 @@ void rational_sumcheck_protocol<FieldT>::calculate_and_submit_proof(
         }
         this->claimed_sum_ = sum;
         const vanishing_polynomial<FieldT> Z_H(this->summation_domain_);
-        const FieldT eps = Z_H.get_linearized_polynomial().coefficients()[1];
+        const FieldT eps = Z_H.formal_derivative_at_point(FieldT::zero());
         const std::vector<FieldT> correction = constant_times_subspace_to_order_H_minus_1(
             eps.inverse() * sum, this->summation_domain_.subspace(), this->summation_domain_size_);
         std::vector<FieldT> p_over_summation_domain(rational_function_over_summation_domain);
@@ -268,7 +268,7 @@ void rational_sumcheck_protocol<FieldT>::calculate_and_submit_proof(
     else if (this->field_subset_type_ == affine_subspace_type)
     {
         const vanishing_polynomial<FieldT> Z_H(this->summation_domain_);
-        const FieldT eps = Z_H.get_linearized_polynomial().coefficients()[1];
+        const FieldT eps = Z_H.formal_derivative_at_point(FieldT::zero());
         this->claimed_sum_ = eps * reextended_poly_coeffs[this->summation_domain_size_-1];
         reextended_poly_coeffs.pop_back();
     }

@@ -32,4 +32,10 @@ linearized_polynomial<FieldT> localizer_polynomial<FieldT>::get_linearized_polyn
     return this->additive_poly_.get_linearized_polynomial();
 }
 
+template<typename FieldT>
+FieldT localizer_polynomial<FieldT>::formal_derivative_at_point(const FieldT &evalpoint) const
+{
+    return this->additive_poly_.formal_derivative_at_point(evalpoint);
+}
+
 } // namespace libiop

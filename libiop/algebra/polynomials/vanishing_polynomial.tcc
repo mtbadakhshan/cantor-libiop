@@ -20,11 +20,12 @@ vanishing_polynomial<FieldT>::vanishing_polynomial(const field_subset<FieldT> &S
     this->vp_degree_ = S.num_elements();
     if (this->type_ == affine_subspace_type) {
         this->is_cantor_basis_ = S.subspace().is_cantor_basis();
-        /* Cantor + LCH: Z_H = W_m, no linearized polynomial. Standard LCH still
-         * materializes it for formal_derivative / localizer images. */
-        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis
-            || !this->is_cantor_basis_) {
+        /* Monomial basis: materialize the linearized polynomial. LCH basis: on a
+         * Cantor basis Z_H = W_m; otherwise evaluate Z_H by its recurrence. */
+        if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
             this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S.subspace());
+        } else if (!this->is_cantor_basis_) {
+            this->init_recurrence(S.subspace());
         }
     } else if (this->type_ == multiplicative_coset_type) {
         this->vp_shift_ = libff::power(S.coset().shift(), this->vp_degree_);
@@ -39,10 +40,51 @@ vanishing_polynomial<FieldT>::vanishing_polynomial(const affine_subspace<FieldT>
 {
     this->vp_degree_ = S.num_elements();
     this->is_cantor_basis_ = S.is_cantor_basis();
-    if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis
-        || !this->is_cantor_basis_) {
+    if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis) {
         this->linearized_polynomial_ = vanishing_polynomial_from_subspace(S);
+    } else if (!this->is_cantor_basis_) {
+        this->init_recurrence(S);
     }
+}
+
+template<typename FieldT>
+void vanishing_polynomial<FieldT>::init_recurrence(const affine_subspace<FieldT> &S)
+{
+    /** For W = <b_0, ..., b_{m-1}>, Z_0(x) = x and, in characteristic two,
+     *  Z_{r+1}(x) = Z_r(x) Z_r(x + b_r) = Z_r(x) (Z_r(x) + Z_r(b_r)).
+     *  vals[j] holds Z_r(b_j) for j >= r, and the shift is carried along. */
+    const std::vector<FieldT> &basis = S.basis();
+    std::vector<FieldT> vals(basis);
+    FieldT shift_val = S.shift();
+    this->recurrence_constants_.clear();
+    this->recurrence_constants_.reserve(basis.size());
+    this->linear_coefficient_ = FieldT::one();
+    for (std::size_t r = 0; r < vals.size(); ++r)
+    {
+        const FieldT w = vals[r];
+        this->recurrence_constants_.emplace_back(w);
+        /* The linear coefficient of Z_{r+1} is that of Z_r times Z_r(b_r). */
+        this->linear_coefficient_ *= w;
+        for (std::size_t j = r + 1; j < vals.size(); ++j)
+        {
+            vals[j] = vals[j] * (vals[j] + w);
+        }
+        shift_val = shift_val * (shift_val + w);
+    }
+    /* Z_{shift + W}(x) = Z_W(x) + Z_W(shift). */
+    this->recurrence_shift_value_ = shift_val;
+    this->use_recurrence_ = true;
+}
+
+template<typename FieldT>
+FieldT vanishing_polynomial<FieldT>::linear_part_at_point(const FieldT &evalpoint) const
+{
+    FieldT z = evalpoint;
+    for (const FieldT &w : this->recurrence_constants_)
+    {
+        z = z * (z + w);
+    }
+    return z;
 }
 
 template<typename FieldT>
@@ -59,12 +101,13 @@ FieldT vanishing_polynomial<FieldT>::evaluation_at_point(const FieldT &evalpoint
         if (get_polynomial_basis_config() == polynomial_basis_config::monomial_poly_basis){
             return this->linearized_polynomial_.evaluation_at_point(evalpoint);
         } else if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
-            /* W_m is Z_H only for a prefix of the global Cantor/standard basis.
-             * FRI localizers after round 0 are other subspaces; use the linearized
-             * polynomial we already materialize on the standard basis. */
+            if (this->use_recurrence_) {
+                return this->linear_part_at_point(evalpoint) + this->recurrence_shift_value_;
+            }
             if (this->is_cantor_basis_) {
                 return lch_vanishing_polynomial_evaluation_at_point(evalpoint, *this);
             }
+            /* Constructed in the monomial basis. */
             return this->linearized_polynomial_.evaluation_at_point(evalpoint);
         } else {
             throw std::invalid_argument("Unknown polynomial basis config");
@@ -93,7 +136,9 @@ FieldT vanishing_polynomial<FieldT>::formal_derivative_at_point(const FieldT &ev
          *  Its formal derivative is 2^i x^{(2^i) - 1},
          *  which for i != 0 is zero, as we are in a binary field.
          *  Consequently the formal derivative is just the linear coefficient */
-        if (this->is_cantor_basis()){
+        if (this->use_recurrence_) {
+            return this->linear_coefficient_;
+        } else if (this->is_cantor_basis()){
             return FieldT::one();
         } else {
             return this->linearized_polynomial_.coefficients()[1];
@@ -139,7 +184,19 @@ std::vector<FieldT> vanishing_polynomial<FieldT>::evaluations_over_subspace(cons
         throw std::invalid_argument("evaluations_over_subspace can only be used on subspace vanishing polynomials.");
     }
     if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis) {
+        if (this->use_recurrence_) {
+            /** Z_H is affine-linear: evaluate its linear part at the basis of S and
+             *  Z_H at the shift of S, then take subset sums. */
+            std::vector<FieldT> eval_at_basis(S.basis());
+            for (FieldT &el : eval_at_basis)
+            {
+                el = this->linear_part_at_point(el);
+            }
+            const FieldT shift = this->linear_part_at_point(S.shift()) + this->recurrence_shift_value_;
+            return all_subset_sums<FieldT>(eval_at_basis, shift);
+        }
         if (!this->is_cantor_basis_) {
+            /* Constructed in the monomial basis. */
             return this->linearized_polynomial_.evaluations_over_subspace(S);
         }
         /** Z_H = W_m is F_2-linear, so evaluate at each basis element of S
@@ -213,6 +270,9 @@ std::size_t vanishing_polynomial<FieldT>::degree() const {
 template<typename FieldT>
 FieldT vanishing_polynomial<FieldT>::constant_coefficient() const {
     if (this->type() == affine_subspace_type) {
+        if (this->use_recurrence_) {
+            return this->recurrence_shift_value_;
+        }
         return this->linearized_polynomial_.constant_coefficient();
     }
     // subgroup / coset type
@@ -229,6 +289,10 @@ std::shared_ptr<polynomial_base<FieldT>>
             && this->is_cantor_basis_) {
             throw std::logic_error(
                 "vanishing_polynomial::associated_k_to_1_map is not implemented for LCH + Cantor");
+        }
+        if (this->use_recurrence_) {
+            /* Z_H itself is the k-to-1 map; evaluate it by the recurrence. */
+            return std::make_shared<vanishing_polynomial<FieldT>>(*this);
         }
         linearized_polynomial<FieldT> copy = this->linearized_polynomial_;
         return std::make_shared<linearized_polynomial<FieldT>>(copy);
@@ -383,10 +447,11 @@ linearized_polynomial<FieldT> vanishing_polynomial<FieldT>::get_linearized_polyn
         throw std::invalid_argument(
             "linearized polynomials can't be constructed for multiplicative vanishing polynomials");
     }
-    if (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis
-        && this->is_cantor_basis_) {
+    if (this->use_recurrence_
+        || (get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis
+            && this->is_cantor_basis_)) {
         throw std::logic_error(
-            "vanishing_polynomial::get_linearized_polynomial is unavailable for LCH + Cantor");
+            "vanishing_polynomial::get_linearized_polynomial is unavailable in the LCH basis");
     }
     return this->linearized_polynomial_;
 }
@@ -394,6 +459,10 @@ linearized_polynomial<FieldT> vanishing_polynomial<FieldT>::get_linearized_polyn
 template<typename FieldT>
 polynomial<FieldT> vanishing_polynomial<FieldT>::get_polynomial() const {
     if (this->type_ == affine_subspace_type) {
+        if (this->use_recurrence_) {
+            throw std::logic_error(
+                "vanishing_polynomial::get_polynomial is unavailable in the LCH basis");
+        }
         return this->linearized_polynomial_.expand_as_polynomial();
     }
     polynomial<FieldT> poly;

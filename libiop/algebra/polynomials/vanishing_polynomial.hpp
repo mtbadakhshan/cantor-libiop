@@ -35,6 +35,16 @@ private:
     // multiplicative coset type
     FieldT vp_shift_; /* shift^|H| for cosets, 1 for subgroups */
     bool is_cantor_basis_ = false;
+    /* Subspace type in the LCH basis on a non-Cantor basis: Z_H is evaluated by the
+     * recurrence Z_{r+1}(x) = Z_r(x) (Z_r(x) + Z_r(b_r)) over the basis (b_r) of H,
+     * so its linearized coefficients are never materialized. */
+    bool use_recurrence_ = false;
+    std::vector<FieldT> recurrence_constants_; /* Z_r(b_r) */
+    FieldT recurrence_shift_value_;            /* Z_W(shift), the constant term */
+    FieldT linear_coefficient_;                /* prod_r Z_r(b_r) */
+
+    void init_recurrence(const affine_subspace<FieldT> &S);
+    FieldT linear_part_at_point(const FieldT &evalpoint) const;
 
 
 public:

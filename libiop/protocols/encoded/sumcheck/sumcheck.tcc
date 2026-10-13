@@ -39,7 +39,7 @@ public:
             if (summation_domain.is_cantor_basis()){
                 this->eps_ = FieldT::one();
             } else {
-                this->eps_ = this->Z_.get_linearized_polynomial().coefficients()[1];
+                this->eps_ = this->Z_.formal_derivative_at_point(FieldT::zero());
             }
         }
     }

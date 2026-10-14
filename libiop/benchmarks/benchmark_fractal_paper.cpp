@@ -74,7 +74,10 @@ int main(int argc, char **argv)
                     blake2b_type, eta, rs_extra, true, affine_subspace_type, cs);
                 // Indexing is preprocessing: outside the timed interval.
                 auto index = fractal_snark_indexer(params);
-                bcs_prover_index<FieldT, hash_type> prover_index = index.first;
+                // The prover consumes this index. Keep a reference rather than
+                // duplicating its oracle evaluations and Merkle trees; the
+                // independent verifier index remains available in index.second.
+                bcs_prover_index<FieldT, hash_type> &prover_index = index.first;
                 libff::clear_profiling_counters();
                 const auto start = std::chrono::steady_clock::now();
                 const auto proof = fractal_snark_prover<FieldT, hash_type>(prover_index, example.primary_input_, example.auxiliary_input_, params);

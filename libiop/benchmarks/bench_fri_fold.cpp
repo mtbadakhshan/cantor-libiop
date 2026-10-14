@@ -34,6 +34,7 @@
 #include "libiop/algebra/polynomials/lch_standard.hpp"
 #include "libiop/algebra/polynomials/poly_basis.hpp"
 #include "libiop/protocols/ldt/fri/fri_aux.hpp"
+#include "libiop/protocols/ldt/fri/fri_local_fold.hpp"
 #include "libiop/protocols/ldt/fri/fri_ldt.hpp"
 #include "libiop/protocols/ldt/fri/localizer_polynomial.hpp"
 
@@ -69,107 +70,16 @@ static std::vector<field_subset<FieldT>> compute_domains(const field_subset<Fiel
 
 /* ---------------- inversion-free evaluation fold ---------------- */
 
-struct eval_round_tables
-{
-    size_t eta = 0;
-    std::vector<FieldT> pivot;      /* gamma_s, s < eta */
-    std::vector<FieldT> pivot_inv;  /* 1/gamma_s */
-    std::vector<FieldT> coset_c;    /* [j*eta + s] = c_j^{(s)} / gamma_s */
-    std::vector<std::vector<FieldT>> intra_u; /* [s][t] = u_t^{(s)} / gamma_s, t < 2^{eta-s-1} */
-};
-
-/* Subset sums: out[j] = base + sum_{b} bit_b(j) gens[b]. Additions only. */
-static void subset_sums(std::vector<FieldT> &out, const FieldT &base, const std::vector<FieldT> &gens)
-{
-    out.assign(size_t(1) << gens.size(), FieldT::zero());
-    out[0] = base;
-    for (size_t b = 0; b < gens.size(); ++b)
-    {
-        const size_t h = size_t(1) << b;
-        for (size_t j = 0; j < h; ++j)
-        {
-            out[h + j] = out[j] + gens[b];
-        }
-    }
-}
+using eval_round_tables = fri_local_fold_tables<FieldT>;
 
 static eval_round_tables eval_preprocess(const field_subset<FieldT> &dom, const size_t eta)
 {
-    eval_round_tables T;
-    T.eta = eta;
-    const std::vector<FieldT> &basis = dom.basis();
-    const size_t m = basis.size();
-    const size_t num_cosets = size_t(1) << (m - eta);
-    std::vector<FieldT> g(basis.begin(), basis.begin() + eta);   /* intra basis images */
-    std::vector<FieldT> o(basis.begin() + eta, basis.end());     /* outer basis images */
-    FieldT th = dom.shift();
-    T.coset_c.assign(num_cosets * eta, FieldT::zero());
-    T.intra_u.resize(eta);
-    std::vector<FieldT> sums;
-    for (size_t s = 0; s < eta; ++s)
-    {
-        const FieldT pv = g[s];
-        const FieldT pinv = pv.inverse();
-        T.pivot.push_back(pv);
-        T.pivot_inv.push_back(pinv);
-        std::vector<FieldT> o_scaled(o.size());
-        for (size_t b = 0; b < o.size(); ++b) o_scaled[b] = o[b] * pinv;
-        subset_sums(sums, th * pinv, o_scaled);
-        for (size_t j = 0; j < num_cosets; ++j) T.coset_c[j * eta + s] = sums[j];
-        std::vector<FieldT> g_scaled;
-        for (size_t b = s + 1; b < eta; ++b) g_scaled.push_back(g[b] * pinv);
-        subset_sums(T.intra_u[s], FieldT::zero(), g_scaled);
-        /* apply q_s(X) = X^2 + gamma_s X */
-        for (size_t b = s + 1; b < eta; ++b) g[b] = g[b].squared() + pv * g[b];
-        for (FieldT &v : o) v = v.squared() + pv * v;
-        th = th.squared() + pv * th;
-    }
-    return T;
+    return make_fri_local_fold_tables(dom, eta);
 }
 
 static std::vector<FieldT> eval_fold(const std::vector<FieldT> &f, const eval_round_tables &T, const FieldT &x)
 {
-    const size_t eta = T.eta;
-    const size_t k = size_t(1) << eta;
-    const size_t num_cosets = f.size() / k;
-    FieldT X[64];
-    FieldT xs = x;
-    for (size_t s = 0; s < eta; ++s)
-    {
-        X[s] = xs * T.pivot_inv[s];
-        xs = xs.squared() + T.pivot[s] * xs;
-    }
-    std::vector<FieldT> out(num_cosets);
-    std::vector<FieldT> g(k);
-    for (size_t j = 0; j < num_cosets; ++j)
-    {
-        const FieldT *src = &f[j * k];
-        const FieldT *cc = &T.coset_c[j * eta];
-        /* step 0 reads the input directly */
-        size_t half = k >> 1;
-        {
-            const FieldT base = X[0] + cc[0];
-            const std::vector<FieldT> &U = T.intra_u[0];
-            for (size_t t = 0; t < half; ++t)
-            {
-                const FieldT a = src[2 * t];
-                g[t] = a + (base + U[t]) * (a + src[2 * t + 1]);
-            }
-        }
-        for (size_t s = 1; s < eta; ++s)
-        {
-            half >>= 1;
-            const FieldT base = X[s] + cc[s];
-            const std::vector<FieldT> &U = T.intra_u[s];
-            for (size_t t = 0; t < half; ++t)
-            {
-                const FieldT a = g[2 * t];
-                g[t] = a + (base + U[t]) * (a + g[2 * t + 1]);
-            }
-        }
-        out[j] = g[0];
-    }
-    return out;
+    return evaluate_fri_local_fold(f, T, x);
 }
 
 /* ---------------- configuration ---------------- */

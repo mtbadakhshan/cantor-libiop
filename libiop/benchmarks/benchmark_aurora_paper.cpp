@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     using namespace libiop;
     using FieldT = libff::gf256;
     try {
-        if (argc != 7) throw std::invalid_argument("Usage: benchmark_aurora_paper LOG_SIZE REPS WARMUPS ETA RS_EXTRA OUTPUT.csv");
+        if (argc != 7 && argc != 8) throw std::invalid_argument("Usage: benchmark_aurora_paper LOG_SIZE REPS WARMUPS ETA RS_EXTRA OUTPUT.csv [configured|local]");
 #ifdef MULTICORE
         throw std::invalid_argument("Use MULTICORE=OFF: libff stage counters are shared mutable state.");
 #endif
@@ -22,9 +22,15 @@ int main(int argc, char **argv)
         const int eta = std::stoi(argv[4]), rs_extra = std::stoi(argv[5]);
         if (size < 9 || size > 19 || reps < 1 || warmups < 1 || eta < 1 || eta > 4 || rs_extra < 1 || rs_extra > 8)
             throw std::invalid_argument("Invalid size/repetitions/warmups/eta/rate parameters");
+        const std::string fri_mode = argc == 8 ? argv[7] : "configured";
+        if (fri_mode != "configured" && fri_mode != "local")
+            throw std::invalid_argument("FRI mode must be configured or local");
+        const bool local_fri = fri_mode == "local";
+        set_fri_fold_implementation(local_fri ? fri_fold_implementation::local_evaluations
+                                             : fri_fold_implementation::configured);
         std::ofstream out(argv[6]);
         if (!out) throw std::runtime_error("Cannot open output CSV");
-        out << "log_constraints,config,sample,warmup,codeword_dim,stage,seconds,calls\n" << std::setprecision(12);
+        out << "log_constraints,config,sample,warmup,codeword_dim,stage,seconds,calls,fri_fold\n" << std::setprecision(12);
         const size_t n = size_t(1) << size;
         // All four configurations use exactly the same R1CS instance and witness.
         const auto example = generate_r1cs_example<FieldT>(n, 31, n - 1);
@@ -48,7 +54,11 @@ int main(int argc, char **argv)
                 const auto times = libff::cumulative_times;
                 const auto counts = libff::invocation_counts;
                 const auto count = [&](const std::string &name) { auto i = counts.find(name); return i == counts.end() ? size_t(0) : i->second; };
-                if ((count("FRI LCH fold") > 0) != lch || (count("FRI evaluation fold") > 0) == lch)
+                if ((count("FRI local evaluation fold") > 0) != local_fri ||
+                    (count("FRI local preprocessing") > 0) != local_fri ||
+                    (count("FRI LCH fold") > 0) != (lch && !local_fri) ||
+                    (count("FRI LCH initial interpolation") > 0) != (lch && !local_fri) ||
+                    (count("FRI evaluation fold") > 0) != (!lch && !local_fri))
                     throw std::runtime_error("Actual FRI branch does not match requested configuration");
                 // Verification and CSV writing are outside the prover timing.
                 if (!aurora_snark_verifier<FieldT>(example.constraint_system_, example.primary_input_, proof, params))
@@ -57,13 +67,13 @@ int main(int argc, char **argv)
                     out << size << ',' << names[config] << ',' << sample << ',' << (sample < warmups) << ','
                         << params.iop_params_.codeword_domain_dim() << ",\"";
                     for (char c : stage) { if (c == '"') out << '"'; out << c; }
-                    out << "\"," << seconds << ',' << calls << '\n';
+                    out << "\"," << seconds << ',' << calls << ',' << fri_mode << '\n';
                 };
                 row("prover_total", elapsed, 1);
                 for (const auto &entry : times) row(entry.first, entry.second * 1e-9, counts.at(entry.first));
                 out.flush();
                 if (!out) throw std::runtime_error("Failed writing CSV");
-                std::cerr << "2^" << size << ' ' << names[config] << ' ' << (sample < warmups ? "warmup" : "measured") << ' ' << sample << ": " << elapsed << " s; verified\n";
+                std::cerr << "2^" << size << ' ' << names[config] << " fri=" << fri_mode << ' ' << (sample < warmups ? "warmup" : "measured") << ' ' << sample << ": " << elapsed << " s; verified\n";
             }
         }
     } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }

@@ -1,6 +1,7 @@
 #include <libff/common/profiling.hpp>
 #include <libff/common/utils.hpp>
 #include "libiop/algebra/fft.hpp"
+#include "libiop/protocols/ldt/fri/fri_local_fold.hpp"
 #include "libiop/algebra/field_subset/subgroup.hpp"
 #include "libiop/algebra/polynomials/lch_polynomial.hpp"
 #include "libiop/algebra/polynomials/lch_standard.hpp"
@@ -558,9 +559,13 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
         multi_f_i_evaluations_by_interaction.emplace_back(multi_f_i_evaluations);
     }
 
-    const bool lch_fold =
+    const bool lch_polynomials =
         get_polynomial_basis_config() == polynomial_basis_config::lch_poly_basis &&
         this->domains_[0].type() == affine_subspace_type;
+    const bool local_fold =
+        get_fri_fold_implementation() == fri_fold_implementation::local_evaluations &&
+        this->domains_[0].type() == affine_subspace_type;
+    const bool lch_fold = lch_polynomials && !local_fold;
 
     /* LCH coefficients per (interaction, LDT instance). Same polynomial as the
      * evaluation oracles; the transcript is unchanged. */
@@ -602,6 +607,14 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
         const bool this_lch_fold =
             lch_fold && this->domains_[i].type() == affine_subspace_type;
 
+        fri_local_fold_tables<FieldT> local_tables;
+        if (local_fold)
+        {
+            libff::enter_block("FRI local preprocessing");
+            local_tables = make_fri_local_fold_tables(this->domains_[i], current_localization_parameter);
+            libff::leave_block("FRI local preprocessing");
+        }
+
         lch_basis_tables<FieldT> current_tables;
         if (this_lch_fold && !current_is_cantor)
         {
@@ -642,7 +655,16 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
             libff::enter_block("evaluating next FRI codeword");
             for (size_t ldt_index = 0; ldt_index < this->poly_handles_.size(); ldt_index++)
             {
-                if (this_lch_fold)
+                if (local_fold)
+                {
+                    libff::enter_block("FRI local evaluation fold");
+                    multi_f_i_evaluations_by_interaction[j][ldt_index] =
+                        std::make_shared<std::vector<FieldT>>(
+                            evaluate_fri_local_fold(
+                                *multi_f_i_evaluations_by_interaction[j][ldt_index], local_tables, x_i));
+                    libff::leave_block("FRI local evaluation fold");
+                }
+                else if (this_lch_fold)
                 {
                     libff::enter_block("FRI LCH fold");
                     libff::enter_block("FRI LCH coefficient mix");
@@ -749,7 +771,7 @@ void FRI_protocol<FieldT>::calculate_and_submit_proof()
             const std::vector<FieldT> &final_evals =
                 *multi_f_i_evaluations_by_interaction[j][ldt_index].get();
             const field_subset<FieldT> &final_domain = this->domains_[this->num_reductions_];
-            std::vector<FieldT> final_poly_coeffs = lch_fold
+            std::vector<FieldT> final_poly_coeffs = lch_polynomials
                 ? additive_IFFT<FieldT>(final_evals, final_domain.subspace())
                 : IFFT_over_field_subset<FieldT>(final_evals, final_domain);
             final_poly_coeffs.resize(this->final_polynomial_degree_bound_);

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Run four Aurora configurations and export sample statistics and stage tables."""
+"""Run four Aurora configurations and export sample statistics and stage tables.
+
+--fri-fold local uses local evaluation folding without per-coset inversions in every column,
+while preserving each column's other polynomial-arithmetic settings. Domain-table
+preprocessing is included in prover time and reported as a separate stage.
+The default, configured, preserves the original Lagrange/LCH comparison.
+"""
 import argparse
 import csv
 import datetime
@@ -25,6 +31,8 @@ def main():
     p.add_argument('--warmups', type=int, default=1, help='Additional discarded proofs per configuration and size')
     p.add_argument('--eta', type=int, default=1, choices=[1, 2, 3, 4])
     p.add_argument('--rs-extra', type=int, default=5)
+    p.add_argument('--fri-fold', choices=['configured', 'local'], default='configured',
+                   help='configured: original per-column fold; local: local evaluation folding in all four columns')
     args = p.parse_args()
     if not (9 <= args.min_log <= args.max_log <= 19 and args.reps > 0 and args.warmups > 0 and 1 <= args.rs_extra <= 8):
         p.error('Invalid range, repetitions, warmups or RS extra dimensions')
@@ -42,6 +50,7 @@ def main():
                     submodules=git('submodule', 'status'),
                     binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
                     field='GF(2^256)', security_bits=128, zero_knowledge=True,
+                    fri_fold=args.fri_fold,
                     soundness='proven', public_inputs=31,
                     stage_semantics='inclusive wall times; nested rows overlap; warmups excluded from summaries')
     for name, path in [('cmake_cache', args.build_dir / 'CMakeCache.txt'), ('cpuinfo', Path('/proc/cpuinfo'))]:
@@ -51,15 +60,19 @@ def main():
     (args.out / 'source.diff').write_text(git('diff', 'HEAD'))
     for name in ['benchmark_aurora_paper.cpp', 'run_aurora_paper.py']:
         shutil.copyfile(Path(__file__).parent / name, args.out / name)
+    for name in ['fri_local_fold.hpp', 'fri_ldt.tcc']:
+        shutil.copyfile(root / 'libiop' / 'protocols' / 'ldt' / 'fri' / name, args.out / name)
     groups = {}
     for size in range(args.min_log, args.max_log + 1):
         raw = args.out / f'samples_{size}.csv'
-        cmd = [str(binary), str(size), str(args.reps), str(args.warmups), str(args.eta), str(args.rs_extra), str(raw.resolve())]
+        cmd = [str(binary), str(size), str(args.reps), str(args.warmups), str(args.eta), str(args.rs_extra), str(raw.resolve()), args.fri_fold]
         print('Running:', ' '.join(cmd), flush=True)
         with (args.out / f'prover_{size}.log').open('w') as log:
             subprocess.run(cmd, stdout=log, check=True)
         with raw.open() as f:
             rows = list(csv.DictReader(f))
+        if not rows or any(row.get('fri_fold') != args.fri_fold for row in rows):
+            raise RuntimeError('FRI mode missing or inconsistent; rebuild benchmark_aurora_paper')
         for config in CONFIGS:
             totals = [r for r in rows if r['config'] == config and r['stage'] == 'prover_total']
             if len(totals) != args.reps + args.warmups or sum(r['warmup'] == '0' for r in totals) != args.reps:
@@ -71,16 +84,16 @@ def main():
         # Update summaries after each completed size, retaining raw data on failure.
         with (args.out / 'summary.csv').open('w') as f:
             w = csv.writer(f)
-            w.writerow(['log_constraints', 'stage', 'config', 'samples', 'mean_s', 'median_s', 'stdev_s', 'cv_percent', 'min_s', 'max_s'])
+            w.writerow(['log_constraints', 'stage', 'config', 'samples', 'mean_s', 'median_s', 'stdev_s', 'cv_percent', 'min_s', 'max_s', 'fri_fold'])
             for (sz, stage, config), values in sorted(groups.items()):
                 mean = statistics.mean(values)
                 sd = statistics.stdev(values) if len(values) > 1 else 0
-                w.writerow([sz, stage, config, len(values), mean, statistics.median(values), sd, 100 * sd / mean if mean else 0, min(values), max(values)])
+                w.writerow([sz, stage, config, len(values), mean, statistics.median(values), sd, 100 * sd / mean if mean else 0, min(values), max(values), args.fri_fold])
         with (args.out / 'comparison.csv').open('w') as f:
             w = csv.writer(f)
-            w.writerow(['log_constraints', 'stage', *[c + '_median_s' for c in CONFIGS]])
+            w.writerow(['log_constraints', 'stage', *[c + '_median_s' for c in CONFIGS], 'fri_fold'])
             for sz, stage in sorted({(k[0], k[1]) for k in groups}):
-                w.writerow([sz, stage, *[statistics.median(groups[(sz, stage, c)]) if (sz, stage, c) in groups else '' for c in CONFIGS]])
+                w.writerow([sz, stage, *[statistics.median(groups[(sz, stage, c)]) if (sz, stage, c) in groups else '' for c in CONFIGS], args.fri_fold])
     print(f'Results: {args.out}/comparison.csv (four columns, inclusive stage medians)')
 
 if __name__ == '__main__':

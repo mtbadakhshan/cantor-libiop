@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Run four Aurora configurations and export sample statistics and stage tables.
+"""Run selected Aurora configurations and export sample statistics and stage tables.
 
---fri-fold local uses local evaluation folding without per-coset inversions in every column,
+--fri-fold local uses local evaluation folding without per-coset inversions in each selected column,
 while preserving each column's other polynomial-arithmetic settings. Domain-table
 preprocessing is included in prover time and reported as a separate stage.
 The default, configured, preserves the original Lagrange/LCH comparison.
+Use --configs to select a subset; by default all four configurations are run.
 """
 import argparse
 import csv
@@ -32,8 +33,12 @@ def main():
     p.add_argument('--eta', type=int, default=1, choices=[1, 2, 3, 4])
     p.add_argument('--rs-extra', type=int, default=5)
     p.add_argument('--fri-fold', choices=['configured', 'local'], default='configured',
-                   help='configured: original per-column fold; local: local evaluation folding in all four columns')
+                   help='configured: original per-column fold; local: local evaluation folding in every selected column')
+    p.add_argument('--configs', nargs='+', choices=CONFIGS, default=CONFIGS,
+                   help='Configurations to measure (default: all four)')
     args = p.parse_args()
+    if len(set(args.configs)) != len(args.configs):
+        p.error('Duplicate configurations are not allowed')
     if not (9 <= args.min_log <= args.max_log <= 19 and args.reps > 0 and args.warmups > 0 and 1 <= args.rs_extra <= 8):
         p.error('Invalid range, repetitions, warmups or RS extra dimensions')
     binary = args.build_dir.resolve() / 'libiop/benchmark_aurora_paper'
@@ -65,7 +70,7 @@ def main():
     groups = {}
     for size in range(args.min_log, args.max_log + 1):
         raw = args.out / f'samples_{size}.csv'
-        cmd = [str(binary), str(size), str(args.reps), str(args.warmups), str(args.eta), str(args.rs_extra), str(raw.resolve()), args.fri_fold]
+        cmd = [str(binary), str(size), str(args.reps), str(args.warmups), str(args.eta), str(args.rs_extra), str(raw.resolve()), args.fri_fold, ','.join(args.configs)]
         print('Running:', ' '.join(cmd), flush=True)
         with (args.out / f'prover_{size}.log').open('w') as log:
             subprocess.run(cmd, stdout=log, check=True)
@@ -73,7 +78,9 @@ def main():
             rows = list(csv.DictReader(f))
         if not rows or any(row.get('fri_fold') != args.fri_fold for row in rows):
             raise RuntimeError('FRI mode missing or inconsistent; rebuild benchmark_aurora_paper')
-        for config in CONFIGS:
+        if {row['config'] for row in rows} != set(args.configs):
+            raise RuntimeError('Measured configurations do not match the requested selection')
+        for config in args.configs:
             totals = [r for r in rows if r['config'] == config and r['stage'] == 'prover_total']
             if len(totals) != args.reps + args.warmups or sum(r['warmup'] == '0' for r in totals) != args.reps:
                 raise RuntimeError(f'Unexpected sample count for {config}, size {size}')
@@ -91,10 +98,10 @@ def main():
                 w.writerow([sz, stage, config, len(values), mean, statistics.median(values), sd, 100 * sd / mean if mean else 0, min(values), max(values), args.fri_fold])
         with (args.out / 'comparison.csv').open('w') as f:
             w = csv.writer(f)
-            w.writerow(['log_constraints', 'stage', *[c + '_median_s' for c in CONFIGS], 'fri_fold'])
+            w.writerow(['log_constraints', 'stage', *[c + '_median_s' for c in args.configs], 'fri_fold'])
             for sz, stage in sorted({(k[0], k[1]) for k in groups}):
-                w.writerow([sz, stage, *[statistics.median(groups[(sz, stage, c)]) if (sz, stage, c) in groups else '' for c in CONFIGS], args.fri_fold])
-    print(f'Results: {args.out}/comparison.csv (four columns, inclusive stage medians)')
+                w.writerow([sz, stage, *[statistics.median(groups[(sz, stage, c)]) if (sz, stage, c) in groups else '' for c in args.configs], args.fri_fold])
+    print(f'Results: {args.out}/comparison.csv ({len(args.configs)} configuration columns, inclusive stage medians)')
 
 if __name__ == '__main__':
     main()

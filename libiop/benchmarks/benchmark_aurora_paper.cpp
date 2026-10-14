@@ -3,7 +3,9 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
+#include <vector>
 #include <libff/common/profiling.hpp>
 #include "libiop/snark/aurora_snark.hpp"
 #include "libiop/relations/examples/r1cs_examples.hpp"
@@ -14,7 +16,7 @@ int main(int argc, char **argv)
     using namespace libiop;
     using FieldT = libff::gf256;
     try {
-        if (argc != 7 && argc != 8) throw std::invalid_argument("Usage: benchmark_aurora_paper LOG_SIZE REPS WARMUPS ETA RS_EXTRA OUTPUT.csv [configured|local]");
+        if (argc < 7 || argc > 9) throw std::invalid_argument("Usage: benchmark_aurora_paper LOG_SIZE REPS WARMUPS ETA RS_EXTRA OUTPUT.csv [configured|local] [CONFIGS_COMMA_SEPARATED]");
 #ifdef MULTICORE
         throw std::invalid_argument("Use MULTICORE=OFF: libff stage counters are shared mutable state.");
 #endif
@@ -22,25 +24,44 @@ int main(int argc, char **argv)
         const int eta = std::stoi(argv[4]), rs_extra = std::stoi(argv[5]);
         if (size < 9 || size > 19 || reps < 1 || warmups < 1 || eta < 1 || eta > 4 || rs_extra < 1 || rs_extra > 8)
             throw std::invalid_argument("Invalid size/repetitions/warmups/eta/rate parameters");
-        const std::string fri_mode = argc == 8 ? argv[7] : "configured";
+        const std::string fri_mode = argc >= 8 ? argv[7] : "configured";
         if (fri_mode != "configured" && fri_mode != "local")
             throw std::invalid_argument("FRI mode must be configured or local");
         const bool local_fri = fri_mode == "local";
         set_fri_fold_implementation(local_fri ? fri_fold_implementation::local_evaluations
                                              : fri_fold_implementation::configured);
+        const char *names[] = {"general_gm", "general_lch", "cantor_bsg", "cantor_lch"};
+        std::vector<size_t> configs;
+        if (argc == 9) {
+            const std::string requested(argv[8]);
+            if (requested.empty() || requested.back() == ',')
+                throw std::invalid_argument("Empty configuration name");
+            std::istringstream input(requested);
+            std::string name;
+            bool selected[4] = {false, false, false, false};
+            while (std::getline(input, name, ',')) {
+                size_t index = 0;
+                while (index < 4 && name != names[index]) ++index;
+                if (index == 4 || selected[index])
+                    throw std::invalid_argument("Unknown or duplicate configuration: " + name);
+                selected[index] = true;
+                configs.push_back(index);
+            }
+        } else {
+            configs = {0, 1, 2, 3};
+        }
         std::ofstream out(argv[6]);
         if (!out) throw std::runtime_error("Cannot open output CSV");
         out << "log_constraints,config,sample,warmup,codeword_dim,stage,seconds,calls,fri_fold\n" << std::setprecision(12);
         const size_t n = size_t(1) << size;
-        // All four configurations use exactly the same R1CS instance and witness.
+        // All selected configurations use exactly the same R1CS instance and witness.
         const auto example = generate_r1cs_example<FieldT>(n, 31, n - 1);
-        const char *names[] = {"general_gm", "general_lch", "cantor_bsg", "cantor_lch"};
         libff::inhibit_profiling_info = true;
         libff::inhibit_profiling_counters = false;
         for (int sample = 0; sample < warmups + reps; ++sample) {
-            // Rotate order to reduce systematic drift between the four columns.
-            for (int position = 0; position < 4; ++position) {
-                const int config = (position + sample) % 4;
+            // Rotate order to reduce systematic drift between selected columns.
+            for (size_t position = 0; position < configs.size(); ++position) {
+                const size_t config = configs[(position + sample) % configs.size()];
                 const bool lch = config == 1 || config == 3;
                 set_polynomial_basis_config(lch ? polynomial_basis_config::lch_poly_basis : polynomial_basis_config::monomial_poly_basis);
                 set_additive_fft_cantor_implementation(additive_fft_cantor_implementation::lch_afft);

@@ -46,6 +46,10 @@ target_link_libraries(benchmark_fractal_paper iop)
 add_executable(bench_fri_fold benchmarks/bench_fri_fold.cpp)
 target_link_libraries(bench_fri_fold iop)
 
+add_executable(test_lch_division tests/algebra/test_lch_division.cpp)
+target_link_libraries(test_lch_division iop gtest_main)
+add_test(NAME test_lch_division COMMAND test_lch_division)
+
 add_executable(test_fri_local_fold tests/protocols/test_fri_local_fold.cpp)
 target_link_libraries(test_fri_local_fold iop gtest_main)
 add_test(NAME test_fri_local_fold COMMAND test_fri_local_fold)

@@ -75,13 +75,21 @@ lch_basis_polynomial_over_vanishing_polynomial(const polynomial<FieldT> &P,
     std::vector<FieldT> quotient_coeffs(P_coeffs.begin() + chunk_size, P_coeffs.end());
     quotient_coeffs.resize(n_chunks * chunk_size);
 
-    /** Round r folds W_m^{2^r} = W_{m+r} + (lower terms) back into the LCH basis.
-     *  On Cantor z_i = 1 and the source-chunk scale is 1. On the standard basis
-     *  the scale is (∏_{k<r} z_{m+k}) / z_{m+r} (fast_preon lch_poly_div_by_vp). */
-    FieldT coeff_numinator = FieldT::one();
-    for (size_t r = 0; r < m; ++r) {
-        const FieldT z = lch_z_i<FieldT>(vp_dim + r, is_cantor);
-        const FieldT coeff = is_cantor ? FieldT::one() : (coeff_numinator * z.inverse());
+    /** Algorithm 3 (DivLCH). Round r scales chunk t = offset + 2^r - 1 by
+     *  (∏_{k<r} z_{m+k}) / z_{m+r} and then adds the finished chunk w = t + 2^r,
+     *  so the rounds run in decreasing order. On Cantor z_i = 1 and the scale is 1.
+     *  Chunks past the dividend are zero, so a missing t or w is skipped. */
+    std::vector<FieldT> coeff(m, FieldT::one());
+    if (!is_cantor)
+    {
+        FieldT coeff_numinator = FieldT::one();
+        for (size_t r = 0; r < m; ++r) {
+            const FieldT z = lch_z_i<FieldT>(vp_dim + r, is_cantor);
+            coeff[r] = coeff_numinator * z.inverse();
+            coeff_numinator *= z;
+        }
+    }
+    for (size_t r = m; r-- > 0;) {
         const size_t s = size_t(1) << r;
         for (size_t offset = 0; offset < n_chunks; offset += 2 * s) {
             if (offset + s > n_chunks - 1) {
@@ -91,19 +99,16 @@ lch_basis_polynomial_over_vanishing_polynomial(const polynomial<FieldT> &P,
             if (!is_cantor)
             {
                 for (size_t j = 0; j < chunk_size; ++j) {
-                    src[j] *= coeff;
+                    src[j] *= coeff[r];
                 }
             }
-            for (size_t i = 0; i < s - 1; ++i) {
-                FieldT *dst = &quotient_coeffs[(offset + i) * chunk_size];
+            const size_t w = offset + 2 * s - 1;
+            if (w < n_chunks - 1) {
+                const FieldT *up = &quotient_coeffs[w * chunk_size];
                 for (size_t j = 0; j < chunk_size; ++j) {
-                    dst[j] += src[j];
+                    src[j] += up[j];
                 }
             }
-        }
-        if (!is_cantor)
-        {
-            coeff_numinator *= z;
         }
     }
 

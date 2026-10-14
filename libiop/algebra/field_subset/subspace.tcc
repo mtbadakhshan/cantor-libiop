@@ -110,7 +110,6 @@ linear_subspace<FieldT> linear_subspace<FieldT>::standard_basis(const std::size_
     return linear_subspace<FieldT>(std::move(basis_elements));
 }
 
-// Taghi added the following function
 template<typename FieldT>
 linear_subspace<FieldT> linear_subspace<FieldT>::cantor_basis(const std::size_t dimension)
 {
@@ -269,7 +268,6 @@ bool linear_subspace<FieldT>::is_standard_basis() const
     return true;
 }
 
-// Taghi added the following function to this code
 template<typename FieldT>
 bool linear_subspace<FieldT>::is_cantor_basis() const
 {
@@ -316,7 +314,6 @@ affine_subspace<FieldT> affine_subspace<FieldT>::shifted_standard_basis(
     return affine_subspace<FieldT>(std::move(basis), shift);
 }
 
-// Taghi Added the following function
 template<typename FieldT>
 affine_subspace<FieldT> affine_subspace<FieldT>::shifted_cantor_basis(
     const std::size_t dimension,

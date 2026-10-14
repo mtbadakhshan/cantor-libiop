@@ -40,6 +40,9 @@ target_include_directories(
 add_executable(benchmark_aurora_paper benchmarks/benchmark_aurora_paper.cpp)
 target_link_libraries(benchmark_aurora_paper iop)
 
+add_executable(benchmark_fractal_paper benchmarks/benchmark_fractal_paper.cpp)
+target_link_libraries(benchmark_fractal_paper iop)
+
 add_executable(bench_fri_fold benchmarks/bench_fri_fold.cpp)
 target_link_libraries(bench_fri_fold iop)
 

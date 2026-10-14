@@ -42,7 +42,7 @@ public:
     bool is_standard_basis() const;
     bool is_cantor_basis() const; 
     static linear_subspace<FieldT> standard_basis(const std::size_t dimension);
-    static linear_subspace<FieldT> cantor_basis(const std::size_t dimension); // Taghi Added
+    static linear_subspace<FieldT> cantor_basis(const std::size_t dimension);
     // TODO: check if the elements are actually linearly independent
     static linear_subspace<FieldT> random_linear_subspace(const std::size_t dimension);
 
@@ -72,7 +72,6 @@ public:
     static affine_subspace<FieldT> shifted_standard_basis(
         const std::size_t dimension,
         const FieldT& shift);
-    // Taghi added the following function:
     static affine_subspace<FieldT> shifted_cantor_basis(
         const std::size_t dimension,
         const FieldT& shift);

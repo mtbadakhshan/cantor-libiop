@@ -33,6 +33,8 @@ target_include_directories(
   ../depends/libfqfft
   ../depends/libff
   ../depends/additive_fft/C++
+  # r1cs_rs_iop.hpp includes gtest/gtest_prod.h (FRIEND_TEST)
+  ../depends/gtest/googletest/include
 )
 
 # BENCHMARKING

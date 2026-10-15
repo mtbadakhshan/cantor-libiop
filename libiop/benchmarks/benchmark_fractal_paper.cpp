@@ -1,4 +1,6 @@
 // Fractal prover benchmark: one proof per sample; export libff counters directly.
+// Each configuration may fix its own FRI fold (NAME:configured or NAME:local), so that the
+// Lagrange-based and local folds can be interleaved within one process.
 // Fractal in libiop supports the standard (non-Cantor) additive domain only, so the
 // configurations are the monomial baseline and LCH-basis arithmetic on that basis.
 // Indexing (preprocessing) is outside the timed interval; every proof is verified.
@@ -23,7 +25,7 @@ int main(int argc, char **argv)
     using FieldT = libff::gf256;
     using hash_type = binary_hash_digest;
     try {
-        if (argc < 7 || argc > 9) throw std::invalid_argument("Usage: benchmark_fractal_paper LOG_SIZE REPS WARMUPS ETA RS_EXTRA OUTPUT.csv [configured|local] [CONFIGS_COMMA_SEPARATED]");
+        if (argc < 7 || argc > 9) throw std::invalid_argument("Usage: benchmark_fractal_paper LOG_SIZE REPS WARMUPS ETA RS_EXTRA OUTPUT.csv [configured|local] [CONFIGS_COMMA_SEPARATED, each NAME or NAME:configured|NAME:local]");
 #ifdef MULTICORE
         throw std::invalid_argument("Use MULTICORE=OFF: libff stage counters are shared mutable state.");
 #endif
@@ -31,29 +33,35 @@ int main(int argc, char **argv)
         const int eta = std::stoi(argv[4]), rs_extra = std::stoi(argv[5]);
         if (size < 9 || size > 19 || reps < 1 || warmups < 1 || eta < 1 || eta > 4 || rs_extra < 1 || rs_extra > 8)
             throw std::invalid_argument("Invalid size/repetitions/warmups/eta/rate parameters");
+        // Default fold for entries without an explicit ":configured" or ":local" suffix.
         const std::string fri_mode = argc >= 8 ? argv[7] : "configured";
         if (fri_mode != "configured" && fri_mode != "local")
             throw std::invalid_argument("FRI mode must be configured or local");
-        const bool local_fri = fri_mode == "local";
-        set_fri_fold_implementation(local_fri ? fri_fold_implementation::local_evaluations
-                                             : fri_fold_implementation::configured);
         const char *names[] = {"general_gm", "general_lch"};
-        std::vector<size_t> configs;
+        // Each entry fixes the arithmetic and the FRI fold, so entries with different folds can be
+        // interleaved within one process. The CSV label is NAME, or NAME:fold if a fold is given.
+        struct entry { size_t base; bool local; std::string label; };
+        std::vector<entry> configs;
+        const auto add = [&](const std::string &item) {
+            const size_t colon = item.find(':');
+            const std::string name = item.substr(0, colon);
+            const std::string fold = colon == std::string::npos ? fri_mode : item.substr(colon + 1);
+            size_t index = 0;
+            while (index < 2 && name != names[index]) ++index;
+            if (index == 2 || (fold != "configured" && fold != "local"))
+                throw std::invalid_argument("Unknown configuration: " + item);
+            for (const auto &e : configs)
+                if (e.label == item) throw std::invalid_argument("Duplicate configuration: " + item);
+            configs.push_back({index, fold == "local", item});
+        };
         if (argc == 9) {
             std::istringstream input(argv[8]);
-            std::string name;
-            bool selected[2] = {false, false};
-            while (std::getline(input, name, ',')) {
-                size_t index = 0;
-                while (index < 2 && name != names[index]) ++index;
-                if (index == 2 || selected[index])
-                    throw std::invalid_argument("Unknown or duplicate configuration: " + name);
-                selected[index] = true;
-                configs.push_back(index);
-            }
+            std::string item;
+            while (std::getline(input, item, ',')) add(item);
             if (configs.empty()) throw std::invalid_argument("Empty configuration list");
         } else {
-            configs = {0, 1};
+            add(names[0]);
+            add(names[1]);
         }
         std::ofstream out(argv[6]);
         if (!out) throw std::runtime_error("Cannot open output CSV");
@@ -66,8 +74,12 @@ int main(int argc, char **argv)
         libff::inhibit_profiling_counters = false;
         for (int sample = 0; sample < warmups + reps; ++sample) {
             for (size_t position = 0; position < configs.size(); ++position) {
-                const size_t config = configs[(position + sample) % configs.size()];
-                const bool lch = config == 1;
+                const entry &config = configs[(position + sample) % configs.size()];
+                const bool lch = config.base == 1;
+                const bool local_fri = config.local;
+                const std::string fold_name = local_fri ? "local" : "configured";
+                set_fri_fold_implementation(local_fri ? fri_fold_implementation::local_evaluations
+                                                     : fri_fold_implementation::configured);
                 set_polynomial_basis_config(lch ? polynomial_basis_config::lch_poly_basis : polynomial_basis_config::monomial_poly_basis);
                 const fractal_snark_parameters<FieldT, hash_type> params(
                     128, LDT_reducer_soundness_type::proven, FRI_soundness_type::proven,
@@ -92,18 +104,18 @@ int main(int argc, char **argv)
                 const auto vstart = std::chrono::steady_clock::now();
                 const bool ok = fractal_snark_verifier<FieldT, hash_type>(index.second, example.primary_input_, proof, params);
                 const double velapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - vstart).count();
-                if (!ok) throw std::runtime_error(std::string("Proof verification failed: ") + names[config]);
+                if (!ok) throw std::runtime_error("Proof verification failed: " + config.label);
                 const size_t proof_bytes = proof.size_in_bytes();
                 const auto row = [&](const std::string &stage, double seconds, size_t calls) {
-                    out << size << ',' << names[config] << ',' << sample << ',' << (sample < warmups) << ",\"";
+                    out << size << ',' << config.label << ',' << sample << ',' << (sample < warmups) << ",\"";
                     for (char c : stage) { if (c == '"') out << '"'; out << c; }
-                    out << "\"," << seconds << ',' << calls << ',' << fri_mode << ',' << proof_bytes << ',' << velapsed << '\n';
+                    out << "\"," << seconds << ',' << calls << ',' << fold_name << ',' << proof_bytes << ',' << velapsed << '\n';
                 };
                 row("prover_total", elapsed, 1);
                 for (const auto &entry : times) row(entry.first, entry.second * 1e-9, counts.at(entry.first));
                 out.flush();
                 if (!out) throw std::runtime_error("Failed writing CSV");
-                std::cerr << "2^" << size << ' ' << names[config] << " fri=" << fri_mode << ' ' << (sample < warmups ? "warmup" : "measured") << ' ' << sample
+                std::cerr << "2^" << size << ' ' << config.label << " fri=" << fold_name << ' ' << (sample < warmups ? "warmup" : "measured") << ' ' << sample
                           << ": " << elapsed << " s; verified (" << velapsed << " s); proof " << proof_bytes << " B\n";
             }
         }

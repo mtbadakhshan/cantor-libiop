@@ -4,9 +4,9 @@
 Fractal in libiop supports only standard-basis (general) domains, so the configurations are
 general_gm (libiop) and general_lch (LCH-basis arithmetic). The indexer runs outside the timed
 interval. --fri-fold local uses local evaluation folding in each selected column; configured
-keeps libiop's Lagrange-based fold for general_gm. The default, both, runs configured with
-general_gm and then local with the selected configurations, into the subfolders configured/
-and local/, and writes speedups.csv with the median prover times and the speedups of
+keeps libiop's Lagrange-based fold for general_gm. The default, both, measures
+general_gm:configured, general_gm:local, and general_lch:local in one process, interleaved
+proof by proof, and writes speedups.csv with the median prover times and the speedups of
 general_lch over general_gm with each fold. Every proof is verified; the verifier time is
 exported as the stage verifier_total, and the peak memory of each size is written to memory.csv.
 """
@@ -67,7 +67,7 @@ def measure(args, root, binary, out, fri_fold, configs):
             w.writerows(memory)
         with raw.open() as f:
             rows = list(csv.DictReader(f))
-        if not rows or any(row.get('fri_fold') != fri_fold for row in rows):
+        if not rows or any(row.get('fri_fold') != (row['config'].split(':')[1] if ':' in row['config'] else fri_fold) for row in rows):
             raise RuntimeError('FRI mode missing or inconsistent; rebuild benchmark_fractal_paper')
         if {row['config'] for row in rows} != set(configs):
             raise RuntimeError('Measured configurations do not match the requested selection')
@@ -127,17 +127,16 @@ def main():
     if args.fri_fold != 'both':
         measure(args, root, binary, args.out, args.fri_fold, args.configs)
         return
-    args.out.mkdir(parents=True, exist_ok=False)
-    configured = measure(args, root, binary, args.out / 'configured', 'configured', ['general_gm'])
-    local = measure(args, root, binary, args.out / 'local', 'local', CONFIGS)
+    labels = ['general_gm:configured', 'general_gm:local', 'general_lch:local']
+    groups = measure(args, root, binary, args.out, 'local', labels)
     with (args.out / 'speedups.csv').open('w') as f:
         w = csv.writer(f)
         w.writerow(['log_constraints', 'libiop_median_s', 'libiop_lch_fold_median_s', 'ours_median_s',
                     'speedup_over_libiop', 'speedup_over_libiop_lch_fold'])
         for size in range(args.min_log, args.max_log + 1):
-            base = statistics.median(configured[(size, 'prover_total', 'general_gm')])
-            base_fold = statistics.median(local[(size, 'prover_total', 'general_gm')])
-            ours = statistics.median(local[(size, 'prover_total', 'general_lch')])
+            base = statistics.median(groups[(size, 'prover_total', labels[0])])
+            base_fold = statistics.median(groups[(size, 'prover_total', labels[1])])
+            ours = statistics.median(groups[(size, 'prover_total', labels[2])])
             w.writerow([size, base, base_fold, ours, base / ours, base_fold / ours])
     print(f'Speedups: {args.out}/speedups.csv')
 
